@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::fmt::Write as _;
 use std::{
     fs::{self, read_to_string},
     io::{self, Write},
@@ -94,6 +95,37 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
 
     let cmd = args.remove(0).to_lowercase();
     match cmd.as_str() {
+        "test" => {
+            println!(
+                "{}",
+                digit_to_char(args[0].parse::<i16>().map_err(|e| e.to_string())?)
+                    .ok_or("err".to_string())?
+            );
+            Ok(())
+        }
+        "dump" => {
+            if args.is_empty() {
+                return Err("Usage: dump <ram|sto> [start end]".to_string());
+            }
+            let region = match args[0].to_lowercase().as_str() {
+                "ram" => RegionType::Ram,
+                "sto" => RegionType::Sto,
+                _ => {
+                    return Err(format!("Error: expected RAM or STO"));
+                }
+            };
+            let (start, end) = match args.len() {
+                // TODO: this is only right if all regions have the same size, WORD_SIZE
+                1 => (-(HALF_WORD), HALF_WORD),
+                3 => {
+                    let s = code_to_i16(args[1])?;
+                    let e = code_to_i16(args[2])?;
+                    if s <= e { (s, e) } else { (e, s) }
+                }
+                _ => return Err("Usage: dump <ram|sto> [start end]".to_string()),
+            };
+            machine.dump_region(region, start, end)
+        }
         "write" => {
             if args.len() < 2 {
                 return Err(format!("Usage: write <ram|sto> <addr>"));
@@ -231,10 +263,10 @@ impl Machine {
 
     fn write_word(&mut self, region: RegionType, addr: i16, value: i16) -> Result<(), String> {
         // TODO: this is only right if all regions have the same size, WORD_SIZE
-        let idx = addr + WORD_SIZE / 2;
+        let idx = (addr + HALF_WORD) as usize;
         if let Some(word) = match region {
-            RegionType::Ram => self.ram.get_mut(idx as usize),
-            RegionType::Sto => self.sto.get_mut(idx as usize),
+            RegionType::Ram => self.ram.get_mut(idx),
+            RegionType::Sto => self.sto.get_mut(idx),
         } {
             *word = value;
             Ok(())
@@ -271,15 +303,57 @@ impl Machine {
 
         Ok(())
     }
+
+    fn read_word(&mut self, region: RegionType, addr: i16) -> Result<i16, String> {
+        // TODO: this is only right if all regions have the same size, WORD_SIZE
+        let idx = (addr + HALF_WORD) as usize;
+        if let Some(word) = match region {
+            RegionType::Ram => self.ram.get_mut(idx),
+            RegionType::Sto => self.sto.get_mut(idx),
+        } {
+            Ok(*word)
+        } else {
+            Err(format!("Address {} out of range!", addr))
+        }
+    }
+
+    fn dump_region(&mut self, region: RegionType, start: i16, end: i16) -> Result<(), String> {
+        let mut line = String::new();
+        let mut addr = start;
+
+        // TODO: add a heading for the top?
+
+        while addr <= end {
+            line.clear();
+            // write!(&mut line, "{}*:", i16_to_code(addr).chars().next().unwrap()).unwrap();
+            write!(&mut line, "{}:", i16_to_code(addr)).unwrap();
+
+            for offset in 0..SIP_SIZE {
+                let cur = addr + offset;
+                if cur > end {
+                    break;
+                }
+                let word = self.read_word(region, cur)?;
+                write!(&mut line, " {}", i16_to_code(word)).unwrap();
+            }
+            println!("{}", line);
+
+            addr += SIP_SIZE;
+            if addr > end {
+                break;
+            }
+        }
+        Ok(())
+    }
 }
 
 fn char_to_digit(c: char) -> Option<i16> {
     match c {
         '.' => Some(0),
         'a'..='m' => Some((c as u8 - b'a' + 1) as i16),
-        'n'..='z' => Some((c as u8 - b'n' - SIP_SIZE as u8) as i16),
+        'n'..='z' => Some(c as i16 - b'n' as i16 - SIP_SIZE / 2),
         'A'..='M' => Some((c as u8 - b'A' + 1) as i16),
-        'N'..='Z' => Some((c as u8 - b'N' - SIP_SIZE as u8) as i16),
+        'N'..='Z' => Some(c as i16 - b'N' as i16 - SIP_SIZE / 2),
         _ => None,
     }
 }
@@ -288,7 +362,7 @@ fn digit_to_char(d: i16) -> Option<char> {
     match d {
         0 => Some('.'),
         1..=13 => Some((b'a' + (d as u8) - 1) as char),
-        -13..=-1 => Some((b'n' + (d + SIP_SIZE) as u8) as char),
+        -13..=-1 => Some((b'n' + (d + SIP_SIZE / 2) as u8) as char),
         _ => None,
     }
 }
