@@ -25,6 +25,7 @@ struct Machine {
     pc: i16,
     a: i16,
     b: i16,
+    sar: i16,
     paused: bool,
     ram: Vec<i16>,
     sto: Vec<i16>,
@@ -34,6 +35,51 @@ struct Machine {
 enum RegionType {
     Ram,
     Sto,
+}
+
+enum Op {
+    Nop,
+    Hlt,
+    Cla,
+
+    Lra,
+    Sra,
+    Lsa,
+    Ssa,
+    Lpa,
+    Spa,
+    Lia,
+
+    Mul,
+    Add,
+    Sub,
+
+    Jmp,
+    Jnz,
+    Jms,
+}
+
+impl Op {
+    fn from_i16(v: i16) -> Self {
+        match v {
+            3 => Self::Cla,
+            8 => Self::Hlt,
+            28 => Self::Lra,
+            26 => Self::Sra,
+            37 => Self::Lsa,
+            35 => Self::Ssa,
+            40 => Self::Lpa,
+            38 => Self::Spa,
+            36 => Self::Lia,
+            364 => Self::Mul,
+            352 => Self::Add,
+            343 => Self::Sub,
+            283 => Self::Jmp,
+            257 => Self::Jnz,
+            262 => Self::Jms,
+            _ => Self::Nop,
+        }
+    }
 }
 
 fn main() {
@@ -95,12 +141,39 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
 
     let cmd = args.remove(0).to_lowercase();
     match cmd.as_str() {
+        "q" => std::process::exit(0),
+        "state" => {
+            if args.is_empty() {
+                machine.print_state(false);
+            } else if args[0].eq_ignore_ascii_case("all") {
+                machine.print_state(true);
+            } else {
+                return Err("Usage: state [all]".to_string());
+            }
+            Ok(())
+        }
         "test" => {
-            println!(
-                "{}",
-                digit_to_char(args[0].parse::<i16>().map_err(|e| e.to_string())?)
-                    .ok_or("err".to_string())?
-            );
+            println!("{}", code_to_i16(args[0])?);
+            Ok(())
+        }
+        "step" | "\'" => {
+            machine.paused = false;
+            machine.step()?;
+            machine.print_state(false);
+            Ok(())
+        }
+        "run" => {
+            machine.paused = false;
+            match args.len() {
+                0 => machine.run(None)?,
+                1 => machine.run(Some(
+                    args[0]
+                        .parse()
+                        .map_err(|_| format!("Invalid number: {}", args[0]))?,
+                ))?,
+                _ => return Err("Usage: run [steps]".to_string()),
+            }
+            machine.print_state(false);
             Ok(())
         }
         "dump" => {
@@ -117,6 +190,10 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
             let (start, end) = match args.len() {
                 // TODO: this is only right if all regions have the same size, WORD_SIZE
                 1 => (-(HALF_WORD), HALF_WORD),
+                2 => {
+                    let s = code_to_i16(args[1])?;
+                    (s, s)
+                }
                 3 => {
                     let s = code_to_i16(args[1])?;
                     let e = code_to_i16(args[2])?;
@@ -126,7 +203,37 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
             };
             machine.dump_region(region, start, end)
         }
+        "pc" => {
+            if args.len() != 1 {
+                return Err("Usage: pc <value>".to_string());
+            }
+            machine.pc = code_to_i16(args[0])?;
+            machine.paused = false;
+            Ok(())
+        }
+        "a" => {
+            if args.len() != 1 {
+                return Err("Usage: a <value>".to_string());
+            }
+            machine.a = code_to_i16(args[0])?;
+            Ok(())
+        }
+        "b" => {
+            if args.len() != 1 {
+                return Err("Usage: b <value>".to_string());
+            }
+            machine.b = code_to_i16(args[0])?;
+            Ok(())
+        }
+        "sar" => {
+            if args.len() != 1 {
+                return Err("Usage: sar <value>".to_string());
+            }
+            machine.sar = code_to_i16(args[0])?;
+            Ok(())
+        }
         "write" => {
+            // TODO: maybe accept assembly codes as well
             if args.len() < 2 {
                 return Err(format!("Usage: write <ram|sto> <addr>"));
             }
@@ -171,7 +278,6 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
                 Err(format!("Usage: save <file>"))
             }
         }
-        "q" => std::process::exit(0),
         _ => {
             println!("Unknown command: {}", cmd);
             println!("TODO: write available commands here");
@@ -186,6 +292,7 @@ impl Default for Machine {
             pc: 0,
             a: 0,
             b: 0,
+            sar: 0,
             paused: false,
             ram: vec![0; RAM_SIZE],
             sto: vec![0; STO_SIZE],
@@ -194,6 +301,95 @@ impl Default for Machine {
 }
 
 impl Machine {
+    fn run(&mut self, limit: Option<usize>) -> Result<(), String> {
+        let mut steps = 0usize;
+        loop {
+            if self.paused {
+                break;
+            }
+
+            if let Some(max) = limit {
+                if steps >= max {
+                    break;
+                }
+            }
+
+            self.step()?;
+            steps += 1;
+        }
+        Ok(())
+    }
+
+    fn step(&mut self) -> Result<(), String> {
+        let opcode = self.advance_pc()?;
+        let op = Op::from_i16(opcode);
+
+        match op {
+            Op::Nop => {}
+            Op::Hlt => self.paused = true,
+            Op::Cla => {
+                self.a = 0;
+                self.b = 0;
+            }
+            Op::Lra => {
+                let operand = self.advance_pc()?;
+                self.a = self.read_word(RegionType::Ram, operand)?
+            }
+            Op::Sra => {
+                let operand = self.advance_pc()?;
+                self.write_word(RegionType::Ram, operand, self.a)?
+            }
+            Op::Lsa => {
+                let operand = self.advance_pc()?;
+                self.a = self.read_word(RegionType::Sto, operand)?
+            }
+            Op::Ssa => {
+                let operand = self.advance_pc()?;
+                self.write_word(RegionType::Sto, operand, self.a)?
+            }
+            Op::Lpa => self.a = self.sar,
+            Op::Spa => self.sar = self.a,
+            Op::Lia => self.a = self.advance_pc()?,
+            Op::Mul => {
+                let operand = self.advance_pc()?;
+                self.b = self.read_word(RegionType::Ram, operand)?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = (self.a * self.b) % HALF_WORD;
+            }
+            Op::Add => {
+                let operand = self.advance_pc()?;
+                self.b = self.read_word(RegionType::Ram, operand)?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = (self.a + self.b) % HALF_WORD;
+            }
+            Op::Sub => {
+                let operand = self.advance_pc()?;
+                self.b = self.read_word(RegionType::Ram, operand)?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = (self.a - self.b) % HALF_WORD;
+            }
+            Op::Jmp => {
+                self.pc = self.advance_pc()?;
+            }
+            Op::Jnz => {
+                let target = self.advance_pc()?;
+                if self.a != 0 {
+                    self.pc = target;
+                }
+            }
+            Op::Jms => {
+                let target = self.advance_pc()?;
+                if self.a > 0 {
+                    self.pc = target;
+                } else if self.a < 0 {
+                    self.pc = -target;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn load_state(&mut self, path: &Path) -> Result<(), String> {
         let text = read_to_string(path).map_err(|e| e.to_string())?;
         let mut lines = text.lines().map(|l| l.trim()).filter(|l| !l.is_empty());
@@ -304,6 +500,21 @@ impl Machine {
         Ok(())
     }
 
+    fn advance_pc(&mut self) -> Result<i16, String> {
+        let word = self.read_word(RegionType::Ram, self.pc)?;
+        if self.pc >= 0 {
+            self.pc += 1;
+            if self.pc > HALF_WORD {
+                return Err(format!("PC is out of bounds: {}", self.pc));
+            }
+        } else {
+            self.pc -= 1;
+            if self.pc < -HALF_WORD {
+                return Err(format!("PC is out of bounds: {}", self.pc));
+            }
+        }
+        Ok(word)
+    }
     fn read_word(&mut self, region: RegionType, addr: i16) -> Result<i16, String> {
         // TODO: this is only right if all regions have the same size, WORD_SIZE
         let idx = (addr + HALF_WORD) as usize;
@@ -344,6 +555,25 @@ impl Machine {
             }
         }
         Ok(())
+    }
+
+    fn print_state(&mut self, all: bool) {
+        println!("PC: {} ({})", self.pc, i16_to_code(self.pc));
+        println!("A: {} ({})", self.a, i16_to_code(self.a));
+        println!("B: {} ({})", self.b, i16_to_code(self.b));
+        println!("SAR: {} ({})", self.sar, i16_to_code(self.sar));
+        println!("Paused: {}", self.paused);
+
+        if all {
+            println!();
+            println!("RAM:");
+            self.dump_region(RegionType::Ram, -HALF_WORD, HALF_WORD)
+                .expect("error in dumping ram...");
+            println!();
+            println!("STO:");
+            self.dump_region(RegionType::Sto, -HALF_WORD, HALF_WORD)
+                .expect("error in dumping sto...");
+        }
     }
 }
 
