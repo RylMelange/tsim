@@ -26,6 +26,7 @@ struct Machine {
     a: i16,
     b: i16,
     sar: i16,
+    srr: i16,
     paused: bool,
     ram: Vec<i16>,
     sto: Vec<i16>,
@@ -57,6 +58,8 @@ enum Op {
     Jmp,
     Jnz,
     Jms,
+    Rte,
+    Rtr,
 }
 
 impl Op {
@@ -77,6 +80,8 @@ impl Op {
             283 => Self::Jmp,
             257 => Self::Jnz,
             262 => Self::Jms,
+            -238 => Self::Rte,
+            -252 => Self::Rtr,
             _ => Self::Nop,
         }
     }
@@ -330,6 +335,7 @@ impl Machine {
             Op::Cla => {
                 self.a = 0;
                 self.b = 0;
+                self.srr = 0;
             }
             Op::Lra => {
                 let operand = self.advance_pc()?;
@@ -339,9 +345,10 @@ impl Machine {
                 let operand = self.advance_pc()?;
                 self.write_word(RegionType::Ram, operand, self.a)?
             }
+            // TODO: LSA is assymetric with SSA, maybe add 2 more instructions?
             Op::Lsa => {
-                let operand = self.advance_pc()?;
-                self.a = self.read_word(RegionType::Sto, operand)?
+                self.a = self.read_word(RegionType::Sto, self.sar)?;
+                self.sar = (self.sar + 1) % HALF_WORD
             }
             Op::Ssa => {
                 let operand = self.advance_pc()?;
@@ -354,7 +361,7 @@ impl Machine {
                 let operand = self.advance_pc()?;
                 self.b = self.read_word(RegionType::Ram, operand)?;
                 // TODO: this is probably not accurate, fix someday
-                self.a = (self.a * self.b) % HALF_WORD;
+                self.a = (self.a * self.b) % HALF_WORD
             }
             Op::Add => {
                 let operand = self.advance_pc()?;
@@ -368,9 +375,7 @@ impl Machine {
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a - self.b) % HALF_WORD;
             }
-            Op::Jmp => {
-                self.pc = self.advance_pc()?;
-            }
+            Op::Jmp => self.pc = self.advance_pc()?,
             Op::Jnz => {
                 let target = self.advance_pc()?;
                 if self.a != 0 {
@@ -385,6 +390,11 @@ impl Machine {
                     self.pc = -target;
                 }
             }
+            Op::Rte => {
+                self.srr = self.pc + 1;
+                self.pc = self.advance_pc()?;
+            }
+            Op::Rtr => self.pc = self.srr,
         }
 
         Ok(())
