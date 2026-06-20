@@ -5,9 +5,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const SIP_SIZE: usize = 27;
-const RAM_SIZE: usize = SIP_SIZE * SIP_SIZE;
-const STO_SIZE: usize = SIP_SIZE * SIP_SIZE;
+const SIP_SIZE: i16 = 27;
+const SIP_PER_WORD: u32 = 2;
+const WORD_SIZE: i16 = SIP_SIZE.pow(SIP_PER_WORD);
+const HALF_WORD: i16 = WORD_SIZE / 2;
+const RAM_SIZE: usize = WORD_SIZE as usize;
+const STO_SIZE: usize = WORD_SIZE as usize;
 
 #[derive(Parser, Debug)]
 #[command(name = "tsim", version, about = "A binary VM", long_about = None)]
@@ -190,10 +193,69 @@ impl Machine {
     }
 }
 
-fn i16_to_code(code: i16) -> String {
-    eprintln!("TODO: convert i16 to code");
-    String::new()
+fn char_to_digit(c: char) -> Option<i16> {
+    match c {
+        '.' => Some(0),
+        'a'..='m' => Some((c as u8 - b'a' + 1) as i16),
+        'n'..='z' => Some((c as u8 - b'n' - SIP_SIZE as u8) as i16),
+        'A'..='M' => Some((c as u8 - b'A' + 1) as i16),
+        'N'..='Z' => Some((c as u8 - b'N' - SIP_SIZE as u8) as i16),
+        _ => None,
+    }
+}
+
+fn digit_to_char(d: i16) -> Option<char> {
+    match d {
+        0 => Some('.'),
+        1..=13 => Some((b'a' + (d as u8) - 1) as char),
+        -13..=-1 => Some((b'n' + (d + SIP_SIZE) as u8) as char),
+        _ => None,
+    }
+}
+
+fn i16_to_code(mut value: i16) -> String {
+    let mut digits = Vec::new();
+
+    while value != 0 {
+        let mut rem = value % SIP_SIZE;
+        value /= SIP_SIZE;
+        if rem > SIP_SIZE / 2 {
+            rem -= SIP_SIZE;
+            value += 1;
+        } else if rem < -SIP_SIZE / 2 {
+            rem += SIP_SIZE;
+            value -= 1;
+        }
+        digits.insert(0, rem);
+    }
+
+    let mut code = String::new();
+    for d in digits {
+        code.push(digit_to_char(d).unwrap_or('?'));
+    }
+
+    while code.len() < SIP_PER_WORD as usize {
+        code.insert(0, '.');
+    }
+
+    code
 }
 fn code_to_i16(token: &str) -> Result<i16, String> {
-    Err("TODO: convert code to i16".to_string())
+    let mut value = 0i16;
+    if token.chars().all(|c| c == '.' || c.is_ascii_alphabetic()) {
+        for char in token.chars() {
+            let d = char_to_digit(char).ok_or_else(|| format!("Invalid character: {}", char))?;
+            value = value * SIP_SIZE + d;
+        }
+    } else {
+        value = token
+            .parse::<i16>()
+            .map_err(|_| format!("Invalid number: {}", token))?
+    }
+
+    if value < -(HALF_WORD) || value > HALF_WORD {
+        Err(format!("Value out of word range: {}", value))
+    } else {
+        Ok(value)
+    }
 }
