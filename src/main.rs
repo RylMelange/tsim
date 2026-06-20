@@ -29,6 +29,12 @@ struct Machine {
     sto: Vec<i16>,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum RegionType {
+    Ram,
+    Sto,
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -71,42 +77,73 @@ fn repl(machine: &mut Machine) {
 
         let trimmed = line.trim();
 
-        if !trimmed.is_empty() {
-            handle_command(machine, trimmed);
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Err(e) = handle_command(machine, trimmed) {
+            eprintln!("{}", e);
         }
     }
 }
 
-fn handle_command(machine: &mut Machine, input: &str) {
-    let mut parts: Vec<&str> = input.trim().split_whitespace().collect();
-    if parts.is_empty() {
-        return;
+fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
+    let mut args: Vec<&str> = input.trim().split_whitespace().collect();
+    if args.is_empty() {
+        return Ok(());
     }
 
-    let cmd = parts.remove(0).to_lowercase();
+    let cmd = args.remove(0).to_lowercase();
     match cmd.as_str() {
-        "load" => {
-            if parts.len() == 1 {
-                match machine.load_state(PathBuf::from(&parts[0]).as_path()) {
-                    Ok(_) => println!("Loaded from {}!", parts[0]),
-                    Err(e) => eprintln!("Error loading from {}: {}", parts[0], e),
+        "write" => {
+            if args.len() < 2 {
+                return Err(format!("Usage: write <ram|sto> <addr>"));
+            }
+
+            let region = match args[0].to_lowercase().as_str() {
+                "ram" => RegionType::Ram,
+                "sto" => RegionType::Sto,
+                _ => {
+                    return Err(format!("Error: expected RAM or STO"));
                 }
+            };
+
+            let addr = code_to_i16(args[1])?;
+
+            // TODO: add some way to abort
+            print!("Enter data to write: ");
+
+            let _ = io::stdout().flush();
+            let mut buf = String::new();
+            io::stdin().read_line(&mut buf).map_err(|e| e.to_string())?;
+
+            let t = buf.trim();
+            if t.is_empty() {
+                println!("Cancelled.");
+                return Ok(());
+            }
+            let data = t.to_string();
+
+            machine.write_stream(region, addr, &data)
+        }
+        "load" => {
+            if args.len() == 1 {
+                machine.load_state(PathBuf::from(&args[0]).as_path())
+            } else {
+                return Err(format!("Usage: load <file>"));
             }
         }
         "save" => {
-            if parts.len() == 1 {
-                match machine.save_state(PathBuf::from(&parts[0]).as_path()) {
-                    Ok(_) => println!("Saved to {}!", parts[0]),
-                    Err(e) => eprintln!("Error writing to {}: {}", parts[0], e),
-                }
+            if args.len() == 1 {
+                machine.save_state(PathBuf::from(&args[0]).as_path())
             } else {
-                println!("Usage: save <file>");
+                Err(format!("Usage: save <file>"))
             }
         }
         "q" => std::process::exit(0),
         _ => {
             println!("Unknown command: {}", cmd);
-            println!("TODO: write available commands here")
+            println!("TODO: write available commands here");
+            Ok(())
         }
     }
 }
@@ -190,6 +227,49 @@ impl Machine {
         }
 
         fs::write(path, state).map_err(|e| e.to_string())
+    }
+
+    fn write_word(&mut self, region: RegionType, addr: i16, value: i16) -> Result<(), String> {
+        // TODO: this is only right if all regions have the same size, WORD_SIZE
+        let idx = addr + WORD_SIZE / 2;
+        if let Some(word) = match region {
+            RegionType::Ram => self.ram.get_mut(idx as usize),
+            RegionType::Sto => self.sto.get_mut(idx as usize),
+        } {
+            *word = value;
+            Ok(())
+        } else {
+            Err(format!("Address {} out of range!", addr))
+        }
+    }
+
+    fn write_stream(&mut self, region: RegionType, start: i16, data: &str) -> Result<(), String> {
+        let mut values = Vec::new();
+        for c in data.chars() {
+            values.push(char_to_digit(c).ok_or_else(|| format!("Invalid symbol '{}'", c))?);
+        }
+
+        let mut addr = start;
+        let mut i = 0usize;
+        while i < values.len() {
+            let hi = values[i];
+            let lo = if i + 1 < values.len() {
+                values[i + 1]
+            } else {
+                0
+            };
+
+            let word = hi * SIP_SIZE + lo;
+            self.write_word(region, addr, word)?;
+
+            addr += 1;
+            if addr > WORD_SIZE {
+                return Err("address limit reached!".to_string());
+            }
+            i += 2;
+        }
+
+        Ok(())
     }
 }
 
