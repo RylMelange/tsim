@@ -300,7 +300,7 @@ impl Default for Machine {
             pc: 0,
             a: 0,
             b: 0,
-            sar: 0,
+            sar: -HALF_WORD,
             srr: 0,
             paused: false,
             ram: vec![0; RAM_SIZE],
@@ -311,20 +311,21 @@ impl Default for Machine {
 
 impl Machine {
     fn run(&mut self, limit: Option<usize>) -> Result<(), String> {
-        let mut steps = 0usize;
+        let mut step = 0usize;
         loop {
             if self.paused {
+                println!("paused at step: {}", step);
                 break;
             }
 
             if let Some(max) = limit {
-                if steps >= max {
+                if step >= max {
                     break;
                 }
             }
 
             self.step()?;
-            steps += 1;
+            step += 1;
         }
         Ok(())
     }
@@ -352,7 +353,7 @@ impl Machine {
             // TODO: LSA is assymetric with SSA, maybe add 2 more instructions?
             Op::Lsa => {
                 self.a = self.read_word(RegionType::Sto, self.sar)?;
-                self.sar = (self.sar + 1) % HALF_WORD
+                self.sar = (self.sar + 1) % HALF_WORD;
             }
             Op::Ssa => {
                 let operand = self.advance_pc()?;
@@ -362,20 +363,17 @@ impl Machine {
             Op::Spa => self.sar = self.a,
             Op::Lia => self.a = self.advance_pc()?,
             Op::Mul => {
-                let operand = self.advance_pc()?;
-                self.b = self.read_word(RegionType::Ram, operand)?;
+                self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a * self.b) % HALF_WORD
             }
             Op::Add => {
-                let operand = self.advance_pc()?;
-                self.b = self.read_word(RegionType::Ram, operand)?;
+                self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a + self.b) % HALF_WORD;
             }
             Op::Sub => {
-                let operand = self.advance_pc()?;
-                self.b = self.read_word(RegionType::Ram, operand)?;
+                self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a - self.b) % HALF_WORD;
             }
