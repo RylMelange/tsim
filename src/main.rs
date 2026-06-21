@@ -60,11 +60,14 @@ enum Op {
     Jms,
     Rte,
     Rtr,
+
+    Unknown,
 }
 
 impl Op {
     fn from_i16(v: i16) -> Self {
         match v {
+            0 => Self::Nop,
             3 => Self::Cla,
             8 => Self::Hlt,
             28 => Self::Lra,
@@ -82,7 +85,7 @@ impl Op {
             262 => Self::Jms,
             -238 => Self::Rte,
             -252 => Self::Rtr,
-            _ => Self::Nop,
+            _ => Self::Unknown,
         }
     }
 }
@@ -298,6 +301,7 @@ impl Default for Machine {
             a: 0,
             b: 0,
             sar: 0,
+            srr: 0,
             paused: false,
             ram: vec![0; RAM_SIZE],
             sto: vec![0; STO_SIZE],
@@ -395,6 +399,14 @@ impl Machine {
                 self.pc = self.advance_pc()?;
             }
             Op::Rtr => self.pc = self.srr,
+            Op::Unknown => {
+                self.paused = true;
+                eprintln!(
+                    "Unknown opcode at {}: {}",
+                    i16_to_code(self.pc - 1),
+                    i16_to_code(opcode)
+                )
+            }
         }
 
         Ok(())
