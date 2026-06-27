@@ -336,7 +336,9 @@ impl Machine {
 
         match op {
             Op::Nop => {}
-            Op::Hlt => self.paused = true,
+            Op::Hlt => {
+                self.paused = true;
+            }
             Op::Cla => {
                 self.a = 0;
                 self.b = 0;
@@ -350,14 +352,15 @@ impl Machine {
                 let operand = self.advance_pc()?;
                 self.write_word(RegionType::Ram, operand, self.a)?
             }
-            // TODO: LSA is assymetric with SSA, maybe add 2 more instructions?
+            // TODO: LSA is asymetric with SSA, maybe add 2 more instructions?
             Op::Lsa => {
                 self.a = self.read_word(RegionType::Sto, self.sar)?;
                 self.sar = (self.sar + 1) % HALF_WORD;
             }
             Op::Ssa => {
                 let operand = self.advance_pc()?;
-                self.write_word(RegionType::Sto, operand, self.a)?
+                let addr = self.read_word(RegionType::Ram, operand)?;
+                self.write_word(RegionType::Sto, addr, self.a)?
             }
             Op::Lpa => self.a = self.sar,
             Op::Spa => self.sar = self.a,
@@ -393,8 +396,9 @@ impl Machine {
                 }
             }
             Op::Rte => {
-                self.srr = self.pc + 1;
-                self.pc = self.advance_pc()?;
+                let target = self.advance_pc()?;
+                self.srr = self.pc;
+                self.pc = target;
             }
             Op::Rtr => self.pc = self.srr,
             Op::Unknown => {
@@ -525,12 +529,14 @@ impl Machine {
         if self.pc >= 0 {
             self.pc += 1;
             if self.pc > HALF_WORD {
-                return Err(format!("PC is out of bounds: {}", self.pc));
+                self.pc = -HALF_WORD;
+                self.paused = true;
             }
         } else {
             self.pc -= 1;
             if self.pc < -HALF_WORD {
-                return Err(format!("PC is out of bounds: {}", self.pc));
+                self.pc = HALF_WORD;
+                self.paused = true;
             }
         }
         Ok(word)
