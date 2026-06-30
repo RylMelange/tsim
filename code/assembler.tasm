@@ -1,0 +1,63 @@
+; TODO: add ISP and DSP and NSP
+    NSP LSA SRA endinput                ;SAR should hold location of input assembly when program is started
+    NSP ISP LPA SRA readptr
+
+    CLA LIA #nnn                    ;CLA includes turning SAR into #...
+:start                                  ;find empty storage to write to
+    LSA JMS occupied                    ;check if chunk is occupied
+    LPA SRA writeptr
+    LIA #mmm SSA NSP LSA SRA nextchunk
+    NSP ISP
+    JMP parse
+:occupied
+    NSP LSA SPA JMP start               ;place next chunk's address into SAR
+!occupied
+    LIA #sto HLT                        ;no space in storage error
+
+:parse
+
+;data to write should be in A register
+;the :write subroutine writes data to writeptr's location, then advances.
+:write
+    SRA writedata
+    LRA writeptr
+    SUB nextchunk JNZ contwrite
+    JMP -occupied
+:contwrite
+    LRA writeptr SPA LIA 
+:writedata
+    #.. SSA
+    LRA writeptr JMS incpos
+:incpos
+    ISP RTR
+!incpos
+    DSP RTR
+:writeptr
+    #...
+:nextchunk
+    #...
+:posptr
+    #...
+:negptr
+    #...
+
+;data read will be in A register
+;the :read subroutine reads data from readptr's location, then advances.
+:read
+    LRA readptr
+    SUB endinput JNZ contread
+    JMP -occupied
+:contread
+    LRA readptr SPA JMS posread
+:posread
+    LSA NSP RTR
+!posread
+    LSA NSP ISP RTR
+:readptr
+    #...
+:endinput
+    #...
+
+
+
+; vim: ts=8 sw=4 :
