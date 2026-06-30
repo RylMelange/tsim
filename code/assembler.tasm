@@ -1,4 +1,3 @@
-; TODO: add ISP and DSP and NSP
     NSP LSA SRA endinput                ;SAR should hold location of input assembly when program is started
     NSP ISP LPA SRA readptr
 
@@ -14,7 +13,47 @@
 !occupied
     LIA #sto HLT                        ;no space in storage error
 
-:parse
+:parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
+    RTE read SBI #xm JMS subsc          ;compare char to semicolon
+:sc
+    RTE read SBI #aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
+:subsc                                  ;char is > semicolon - cap letter or control char (space/newline)
+    ADI #xm SBI #zn JMS caps
+:caps                                   ;char is space, newline, eof, etc
+    JMP parse                           ;TODO: account for dash and EOF
+!caps
+    ADI #zn SBI #y. SHL SHL SHL SRA towrite     ;char is caps character
+    RTE read ADI
+:towrite
+    #... SHL SHL SHL SRA towrite2 
+    RTE read ADI
+:towrite2
+    #... RTE write JMP parse
+
+!subsc
+    ADI #xm SBI #xn JMS lorl
+:lorl                                   ;char could be: label or literal
+    ADI #xn SBI #xv JMS label
+
+    RTE read SBI #w.                    ;char is literal
+    SRA tmplit
+:contlit
+    RTE read SBI #a. JMS carrion
+:carrion
+    LRA tmplit RTE write JMP parse
+!carrion
+    SRA tmplit2 LRA tmplit SHL SHL SHL ADI
+:tmplit2
+    #... SRA tmplit JMP contlit
+:tmplit
+    #...
+
+!lorl                                   ;char is lowercase letter (ref to label)
+;TODO: good grief how does this work
+:label                                  ;char is positive label
+;TODO: how?
+!label                                  ;char is negative label
+;TODO: how?
 
 ;data to write should be in A register
 ;the :write subroutine writes data to writeptr's location, then advances.
