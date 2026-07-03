@@ -8,21 +8,83 @@
     LIA #mmm SSA NSP LSA SRA nextchunk
     NSP ASP
     JMP parse
-:occupied
-    NSP LSA SPA JMP start               ;place next chunk's address into SAR
 !occupied
+    NSP LSA SPA JMP start               ;place next chunk's address into SAR
+:occupied
     LIA #sto HLT                        ;no space in storage error
 
 :parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
-    RTE read SBI #xm JMS subsc          ;compare char to semicolon
+    RTE read SBI #.xm JMS subsc          ;compare char to semicolon
 :sc
-    RTE read SBI #aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
+    RTE read SBI #.aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
 :subsc                                  ;char is > semicolon - cap letter or control char (space/newline)
-    ADI #xm SBI #zn JMS caps
-:caps                                   ;char is space, newline, eof, etc
-    JMP parse                           ;TODO: account for period
-!caps
-    ADI #zn SBI #y. SHL SHL SHL SRA towrite     ;char is caps character ;TODO: account for EOF
+    ADI #.xm SBI #.zn JMS ctrlchar
+:ctrlchar                               ;char is space, newline, eof, etc
+    ADI #.zn SUB #.z. JNZ parse
+
+    RTE read                            ;char is dot
+    SBI #.zn JNZ dotpos
+:dotpos
+    LIA #nop JMP .+3
+!dotpos
+    LIA #neg
+    SRA .+7 LIA .+5 SRA d2trtr JMP d2t
+    #... SRA .+14 LRA writeptr 
+    JMS dotposwri
+:dotposwri
+    LIA #nop JMP .+3
+!dotposwri
+    LIA #neg
+    SRA .+3
+    LIA #... #... ADD writeptr
+    RTE write
+    JMP parse
+
+
+!ctrlchar
+    ADI #.zn SBI #.z. JNZ opcode
+
+:refloop                                ;char is EOF
+    LRA refptr SRA .+6
+:labloop
+    LRA labptr SRA .+4 
+    LRA #... SUB #... JNZ nextlab
+
+    LRA refptr ADI #..a SRA .+8
+    LRA labptr ADI #..a SRA .+4
+    LRA #... SUB #... JNZ nextlab
+
+    LRA refptr ADI #..b SRA .+8
+    LRA labptr ADI #..b SRA .+4
+    LRA #... SUB #... JNZ nextlab
+
+    LRA labptr ADI #..c SRA writeref+1
+    LRA refptr ADI #..c SRA writeref+3
+    LRA refptr ADI #..d
+    SPA ;prepare pointer to address
+:writeref
+    LRA #...                            ;read label address
+    ADI #...                            ;add offset
+    SSA                                 ;write to address
+
+    LIA slabel SRA labptr
+    LRA refptr ADI #..e SRA refptr SUB stack JNZ refloop
+    LIA #... HLT                        ;true end of program
+
+:nextlab
+    LRA labptr ADI #..d SRA labptr SUB slabel-1 JMS nolab
+:nolab
+    LIA #nol HLT                        ;no label for ref
+!nolab
+    JMP labloop
+
+:refptr
+    sref
+:labptr
+    slabel
+
+:opcode
+    ADI #.z. SBI #.y. SHL SHL SHL SRA towrite     ;char is caps character
     RTE read ADI
 :towrite
     #... SHL SHL SHL SRA towrite2 
@@ -31,23 +93,8 @@
     #... RTE write JMP parse
 
 !subsc
-    ADI #xm SBI #xn JMS lorl            ;char < semicolon
+    ADI #.xm SBI #.xn JMS lorl            ;char < semicolon
     ;char is dash ;TODO: account for dash
-:lorl                                   ;char could be: label or literal
-    ADI #xn SBI #xv JMS label
-
-    RTE read SBI #w.                    ;char is literal
-    SRA tmplit
-:contlit
-    RTE read SBI #a. JMS carrion
-:carrion
-    LRA tmplit RTE write JMP parse
-!carrion
-    SRA tmplit2 LRA tmplit SHL SHL SHL ADI
-:tmplit2
-    #... SRA tmplit JMP contlit
-:tmplit
-    #...
 
 !lorl                                   ;char is lowercase letter (ref to label)
     SRA read9-1                         ;read9 is subroutine that reads 9 words (including one in read9-1)
@@ -60,10 +107,60 @@
     LRA read9d SSA ASP                  ;this is the offset
     LPA SRA stack
 
-:label                                  ;char is positive label
-;TODO: how?
+:lorl                                   ;char could be: label or literal
+    ADI #xn SBI #.xv JMS label
+
+    RTE read SBI                    ;char is literal
+    SRA tmplit
+:contlit
+    RTE read SBI JMS carrion
+:carrion
+    LRA tmplit RTE write JMP parse
+!carrion
+    SRA tmplit2 LRA tmplit SHL SHL SHL ADI
+:tmplit2
+    #... SRA tmplit JMP contlit
+:tmplit
+    #...
+
+;TODO: label
 !label                                  ;char is negative label
-;TODO: how?
+:label                                  ;char is positive label
+:labelloop
+    RTE read SRA read9-1 JMP read9
+    ;TODO: THIS IS WRONG!!!
+    LRA slabel SPA                      ;check if label already exists
+    RTE read SUB read9a JNZ nextlabel
+    RTE read SUB read9b JNZ nextlabel+2
+    RTE read SUB read9c JNZ nextlabel+4
+    RTE read JMS poslabel
+:nextlabel
+    RTE read RTE read RTE read 
+    LPA SUB slabel-1 JNZ labelloop
+    LRA slabel-1 SPA
+    LIA read9a RTE write
+    LIA read9b RTE write
+    LIA read9c RTE write
+    LRA negptr NEG SUB posptr JMS neglabel
+:neglabel
+    LRA negptr RTE write SPA JMP parse
+!neglabel
+    LRA posptr RTE write SPA JMP parse
+
+:poslabel
+    SUB posptr JMS possafe
+:possafe
+    ADD posptr SPA JMP parse
+!possafe
+    HLT
+
+!poslabel
+    SUB negptr JMS negsafe
+!negsafe
+    ADD negptr SPA JMP parse
+:negsafe
+    HLT
+
 
 
 ;read9 reads 9 words (including the one in read9-1) and 
@@ -84,14 +181,13 @@
 :r9ws
     LIA #... SRA read9d JMP r9out
 !r9ws
-    SBI #xn JNZ pos
-:pos
-    LIA #nop JMP r9offcont
-!pos
+    SBI JNZ r9pos
+:r9pos
+    LIA #nop JMP .+3
+!r9pos
     LIA #neg
-:r9offcont
-    SRA r9offop LIA .+5 SRA d2trtr JMP d2t
-    SRA read9d 
+    SRA .+7 LIA .+5 SRA d2trtr JMP d2t
+    #... SRA read9d 
 :r9out
     JMP 
 :read9rtr
@@ -137,14 +233,20 @@
 ;the :write subroutine writes data to writeptr's location, then advances.
 :write
     SRA writedata
-    LRA writeptr
-    SUB nextchunk JNZ contwrite
-    JMP -occupied
-:contwrite
+    LRA writeptr ABS
+    SUB nextchunk JMS overflow
+:overflow
+    JMP occupied
+!overflow
     LRA writeptr SPA LIA 
 :writedata
-    #.. SSA
-    LRA writeptr ASP
+    SSA
+    ASP 
+    LPA JMS poswriptr
+:poswriptr
+    SRA posptr RTR
+!poswriptr
+    SRA negptr RTR
 :writeptr
     #...
 :nextchunk
@@ -159,7 +261,7 @@
 :read
     LRA readptr
     SUB endinput JNZ contread
-    JMP -occupied
+    JMP occupied
 :contread
     LRA readptr SPA JMS posread
 :posread
@@ -173,8 +275,10 @@
 
 :stack                                  ;stack used for storing references
     .+1
+:sref
 !stack                                  ;stack used for storing labels
     .+1
+:slabel
 
 
 ; vim: ts=8 sw=4 :
