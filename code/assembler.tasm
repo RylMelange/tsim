@@ -97,7 +97,7 @@
     ;char is dash ;TODO: account for dash
 
 !lorl                                   ;char is lowercase letter (ref to label)
-    SRA read9-1                         ;read9 is subroutine that reads 9 words (including one in read9-1)
+    ADI #.xn SRA read9-1                         ;read9 is subroutine that reads 9 words (including one in read9-1)
     LIA .+4 SRA read9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
 
     LRA stack SPA
@@ -107,10 +107,10 @@
     LRA read9d SSA ASP                  ;this is the offset
     LPA SRA stack
 
-:lorl                                   ;char could be: label or literal
+:lorl                                   ;char could be: label or literal (char > dash, < semicolon)
     ADI #xn SBI #.xv JMS label
 
-    RTE read SBI                    ;char is literal
+    RTE read                            ;char is literal
     SRA tmplit
 :contlit
     RTE read SBI JMS carrion
@@ -124,42 +124,77 @@
     #...
 
 ;TODO: label
-!label                                  ;char is negative label
-:label                                  ;char is positive label
-:labelloop
+!label                                  ;char is btwn - and # -> could be ? or !
+    ADI #.xv SBI #.xt JMS qnmark
+:qnmark
+    LIA #nop SRA labop JMP labcont
+!qnmark
+    LIA #neg SRA labop
+
+:labcont
+    LIA .+9 SRA read9rtr
     RTE read SRA read9-1 JMP read9
-    ;TODO: THIS IS WRONG!!!
-    LRA slabel SPA                      ;check if label already exists
-    RTE read SUB read9a JNZ nextlabel
-    RTE read SUB read9b JNZ nextlabel+2
-    RTE read SUB read9c JNZ nextlabel+4
-    RTE read JMS poslabel
-:nextlabel
-    RTE read RTE read RTE read 
-    LPA SUB slabel-1 JNZ labelloop
-    LRA slabel-1 SPA
-    LIA read9a RTE write
-    LIA read9b RTE write
-    LIA read9c RTE write
-    LRA negptr NEG SUB posptr JMS neglabel
-:neglabel
-    LRA negptr RTE write SPA JMP parse
-!neglabel
-    LRA posptr RTE write SPA JMP parse
+    LIA .+5 SRA chklabrtr JMP chklab
+    JNZ labop LRA negptr NEG SUB posptr JMS negptrge2
+    LIA writeptr JMP mklab
+:negptrge2
+    LIA negptr JMP mklab
+!negptrge2
+    LIA posptr JMP mklab
 
-:poslabel
-    SUB posptr JMS possafe
-:possafe
-    ADD posptr SPA JMP parse
-!possafe
-    HLT
+    #...
+:mklab
+    SRA mklab-1 LRA slabel-1 SRA .+4
+    LRA read9a SRA #...
+    LRA .-2 ADI #..a SRA .+4
+    LRA read9b SRA #...
+    LRA .-2 ADI #..b SRA .+4
+    LRA read9b SRA #...
+    LRA .-2 ADI #..b SRA .+4
+    LRA mklab-1 SRA #...
 
-!poslabel
-    SUB negptr JMS negsafe
-!negsafe
-    ADD negptr SPA JMP parse
-:negsafe
-    HLT
+:labop
+    #... SPA JMP parse
+
+:label                                  ;char is :
+    LIA .+9 SRA read9rtr
+    RTE read SRA read9-1 JMP read9
+    LRA slabel-1 SRA .+4
+    LRA read9a SRA #...
+    LRA slabel-1 ADI #..a SRA .+4
+    LRA read9b SRA #...
+    LRA slabel-1 ADI #..b SRA .+4
+    LRA read9c SRA #...
+
+    LRA slabel-1 ADI #..c SRA .+15
+    ADI #..a SRA slabel-1
+    LRA negptr NEG SUB posptr JMS negptrge
+:negptrge                                  ;neg is greater
+    LRA posptr
+    SRA #...
+!negptrge
+    LRA negptr JMP negptrge+3
+
+
+;chklab checks if read9{a,b,c} is equal to any label.
+;If yes, it returns the address, else, returns #...
+:chklab
+    LRA slabel SUB read9a JNZ chknxtlab
+    LRA slabel+1 SUB read9b JNZ chknxtlab
+    LRA slabel+2 SUB read9c JNZ chknxtlab
+    LRA slabel+3 JMP
+:chklabrtr
+    #...
+:chknxtlab
+    LRA chklab+1 ADI #..d SBI slabel-1 JMS chknolab
+    LIA #..a ;the second unecessary check could technically return if overflow == read9{a-c} :)
+!chknolab
+    ADI slabel-1 SRA chklab+1
+    ADI #..a SRA chklab+7
+    ADI #..a SRA chklab+13
+    ADI #..a SRA chklab+19
+    JMP chklab
+:chknolab LIA #... JMP chklabrtr-1
 
 
 
