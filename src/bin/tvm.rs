@@ -1,3 +1,5 @@
+use ternary_tools::helper::*;
+
 use clap::Parser;
 use std::fmt::Write as _;
 use std::{
@@ -5,13 +7,6 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
 };
-
-const SIP_SIZE: i16 = 27;
-const SIP_PER_WORD: u32 = 2;
-const WORD_SIZE: i16 = SIP_SIZE.pow(SIP_PER_WORD);
-const HALF_WORD: i16 = WORD_SIZE / 2;
-const RAM_SIZE: usize = WORD_SIZE as usize;
-const STO_SIZE: usize = WORD_SIZE as usize;
 
 #[derive(Parser, Debug)]
 #[command(name = "tsim", version, about = "A binary VM", long_about = None)]
@@ -38,10 +33,14 @@ enum RegionType {
     Sto,
 }
 
+#[derive(Debug)]
 enum Op {
     Nop,
     Hlt,
     Cla,
+
+    Nsp,
+    Asp,
 
     Lra,
     Sra,
@@ -51,15 +50,24 @@ enum Op {
     Spa,
     Lia,
 
-    Mul,
-    Add,
-    Sub,
-
+    Jms,
     Jmp,
     Jnz,
-    Jms,
     Rte,
     Rtr,
+
+    Abs,
+    Neg,
+    Adi,
+    Sbi,
+    Mli,
+    Tmi,
+    Add,
+    Sub,
+    Mul,
+
+    Shl,
+    Shr,
 
     Unknown,
 }
@@ -67,24 +75,40 @@ enum Op {
 impl Op {
     fn from_i16(v: i16) -> Self {
         match v {
-            0 => Self::Nop,
-            3 => Self::Cla,
-            8 => Self::Hlt,
-            28 => Self::Lra,
-            26 => Self::Sra,
-            37 => Self::Lsa,
-            35 => Self::Ssa,
-            40 => Self::Lpa,
-            38 => Self::Spa,
-            36 => Self::Lia,
-            364 => Self::Mul,
-            352 => Self::Add,
-            343 => Self::Sub,
-            283 => Self::Jmp,
-            257 => Self::Jnz,
-            262 => Self::Jms,
-            -238 => Self::Rte,
-            -252 => Self::Rtr,
+            -9812 => Self::Nop,
+            6149 => Self::Hlt,
+            2512 => Self::Cla,
+
+            -9704 => Self::Nsp,
+            502 => Self::Asp,
+
+            8506 => Self::Lra,
+            -6074 => Self::Sra,
+            8533 => Self::Lsa,
+            -6047 => Self::Ssa,
+            8452 => Self::Lpa,
+            -6128 => Self::Spa,
+            8992 => Self::Lia,
+
+            7633 => Self::Jms,
+            7630 => Self::Jmp,
+            6938 => Self::Jnz,
+            -6745 => Self::Rte,
+            -6759 => Self::Rtr,
+
+            775 => Self::Abs,
+            -9335 => Self::Neg,
+            846 => Self::Adi,
+            -5769 => Self::Sbi,
+            9810 => Self::Mli,
+            -4743 => Self::Tmi,
+            841 => Self::Add,
+            -5992 => Self::Sub,
+            9327 => Self::Mul,
+
+            -5604 => Self::Shl,
+            -5625 => Self::Shr,
+
             _ => Self::Unknown,
         }
     }
@@ -161,7 +185,12 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
             Ok(())
         }
         "test" => {
-            println!("{}", code_to_i16(args[0])?);
+            let num = code_to_i16(args[0])?;
+            println!("{}", num);
+            for i in i16_to_trit(num) {
+                print!(".{}", i);
+                println!();
+            }
             Ok(())
         }
         "step" | "\'" => {
@@ -333,6 +362,7 @@ impl Machine {
     fn step(&mut self) -> Result<(), String> {
         let opcode = self.advance_pc()?;
         let op = Op::from_i16(opcode);
+        println!("running op: {:?}", op);
 
         match op {
             Op::Nop => {}
@@ -365,20 +395,44 @@ impl Machine {
             Op::Lpa => self.a = self.sar,
             Op::Spa => self.sar = self.a,
             Op::Lia => self.a = self.advance_pc()?,
+            Op::Neg => self.a = -self.a,
+            Op::Abs => self.a = self.a.abs(),
             Op::Mul => {
                 self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a * self.b) % HALF_WORD
             }
-            Op::Add => {
+            Op::Adi => {
                 self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a + self.b) % HALF_WORD;
             }
-            Op::Sub => {
+            Op::Add => {
+                let addr = self.advance_pc()?;
+                self.b = self.read_word(RegionType::Sto, addr)?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = (self.a + self.b) % HALF_WORD;
+            }
+            Op::Sbi => {
                 self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a - self.b) % HALF_WORD;
+            }
+            Op::Sub => {
+                let addr = self.advance_pc()?;
+                self.b = self.read_word(RegionType::Sto, addr)?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = (self.a - self.b) % HALF_WORD;
+            }
+            Op::Mli => {
+                self.b = self.advance_pc()?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = (self.a * self.b) % HALF_WORD;
+            }
+            Op::Tmi => {
+                self.b = self.advance_pc()?;
+                // TODO: this is probably not accurate, fix someday
+                self.a = tritwise_mul(self.a, self.b) % HALF_WORD;
             }
             Op::Jmp => self.pc = self.advance_pc()?,
             Op::Jnz => {
@@ -401,6 +455,23 @@ impl Machine {
                 self.pc = target;
             }
             Op::Rtr => self.pc = self.srr,
+            Op::Nsp => self.sar = -self.sar,
+            Op::Asp => {
+                self.sar = if self.sar < 0 {
+                    self.sar - 1
+                } else {
+                    self.sar + 1
+                }
+            }
+            Op::Shl => {
+                self.a = self.a * 3 % HALF_WORD;
+            }
+            Op::Shr => {
+                if self.a == 0 {
+                    let trits = i16_to_trit(self.a);
+                    self.a = trit_to_i16(&trits[1..]);
+                }
+            }
             Op::Unknown => {
                 self.paused = true;
                 eprintln!(
@@ -419,8 +490,8 @@ impl Machine {
         let mut lines = text.lines().map(|l| l.trim()).filter(|l| !l.is_empty());
 
         let header = lines.next().ok_or_else(|| "Empty file".to_string())?;
-        if header != "TSIM1" {
-            return Err("Unrecognised state file header (expected TSIM1)".to_string());
+        if header != "TSIM2" {
+            return Err("Unrecognised state file header (expected TSIM2)".to_string());
         }
 
         while let Some(line) = lines.next() {
@@ -603,69 +674,19 @@ impl Machine {
     }
 }
 
-fn char_to_digit(c: char) -> Option<i16> {
-    match c {
-        '.' => Some(0),
-        'a'..='m' => Some((c as u8 - b'a' + 1) as i16),
-        'n'..='z' => Some(c as i16 - b'n' as i16 - SIP_SIZE / 2),
-        'A'..='M' => Some((c as u8 - b'A' + 1) as i16),
-        'N'..='Z' => Some(c as i16 - b'N' as i16 - SIP_SIZE / 2),
-        _ => None,
-    }
-}
 
-fn digit_to_char(d: i16) -> Option<char> {
-    match d {
-        0 => Some('.'),
-        1..=13 => Some((b'a' + (d as u8) - 1) as char),
-        -13..=-1 => Some((b'n' + (d + SIP_SIZE / 2) as u8) as char),
-        _ => None,
-    }
-}
+fn tritwise_mul(a: i16, b: i16) -> i16 {
+    let ta = i16_to_trit(a);
+    let tb = i16_to_trit(b);
 
-fn i16_to_code(mut value: i16) -> String {
-    let mut digits = Vec::new();
+    let len = ta.len().max(tb.len());
+    let mut result = Vec::with_capacity(len);
 
-    while value != 0 {
-        let mut rem = value % SIP_SIZE;
-        value /= SIP_SIZE;
-        if rem > SIP_SIZE / 2 {
-            rem -= SIP_SIZE;
-            value += 1;
-        } else if rem < -SIP_SIZE / 2 {
-            rem += SIP_SIZE;
-            value -= 1;
-        }
-        digits.insert(0, rem);
+    for i in 0..len {
+        let x = *ta.get(i).unwrap_or(&0);
+        let y = *tb.get(i).unwrap_or(&0);
+        result.push(x * y);
     }
 
-    let mut code = String::new();
-    for d in digits {
-        code.push(digit_to_char(d).unwrap_or('?'));
-    }
-
-    while code.len() < SIP_PER_WORD as usize {
-        code.insert(0, '.');
-    }
-
-    code
-}
-fn code_to_i16(token: &str) -> Result<i16, String> {
-    let mut value = 0i16;
-    if token.chars().all(|c| c == '.' || c.is_ascii_alphabetic()) {
-        for char in token.chars() {
-            let d = char_to_digit(char).ok_or_else(|| format!("Invalid character: {}", char))?;
-            value = value * SIP_SIZE + d;
-        }
-    } else {
-        value = token
-            .parse::<i16>()
-            .map_err(|_| format!("Invalid number: {}", token))?
-    }
-
-    if value < -(HALF_WORD) || value > HALF_WORD {
-        Err(format!("Value out of word range: {}", value))
-    } else {
-        Ok(value)
-    }
+    trit_to_i16(&result)
 }

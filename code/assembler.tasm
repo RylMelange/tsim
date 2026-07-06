@@ -2,10 +2,12 @@
     NSP ASP LPA SRA readptr
 
     CLA LIA #nnn                    ;CLA includes turning SAR into #...
->start                                  ;find empty storage to write to
+    JMP start
+:start                                  ;find empty storage to write to
     LSA JMS occupied                    ;check if chunk is occupied
     LPA SRA writeptr
-    LIA #mmm SSA NSP LSA SRA nextchunk
+    LIA #mmm SSA NSP 
+    LSA SRA nextchunk
     NSP ASP
     JMP parse
 !occupied
@@ -13,27 +15,30 @@
 ?occupied
     LIA #sto HLT                        ;no space in storage error
 
->parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
+:parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
     RTE read SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
-    RTE read SBI #.aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
+    RTE read
+    SBI #.aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
 ?subsc                                  ;char is > semicolon - cap letter or control char (space/newline)
-    ADI #.xm SBI #.zn JMS ctrlchar
+    ADI #.xm SBI #.ym JMS ctrlchar
+!ctrlchar
+    ADI #.ym SBI #.z. JNZ opcode JMP refloop
 ?ctrlchar                               ;char is space, newline, eof, etc
-    ADI #.zn SUB #.z. JNZ parse
+    ADI #.ym SUB #.z. JNZ parse
 
     RTE read                            ;char is dot
-    SBI #.zn JNZ dotpos
-?dotpos
-    LIA #nop JMP .+3
+    SBI #.zn NEG JMS dotpos
 !dotpos
+    LIA #nop JMP dotpos+2
+?dotpos
     LIA #neg
     SRA .+7 LIA .+5 SRA d2trtr JMP d2t
     #... SRA .+14 LRA writeptr 
-    JMS dotposwri
-?dotposwri
-    LIA #nop JMP .+3
+    NEG JMS dotposwri
 !dotposwri
+    LIA #nop JMP dotposwri+2
+?dotposwri
     LIA #neg
     SRA .+3
     LIA #... #... ADD writeptr
@@ -41,10 +46,7 @@
     JMP parse
 
 
-!ctrlchar
-    ADI #.zn SBI #.z. JNZ opcode
-
->refloop                                ;char is EOF
+:refloop                                ;char is EOF
     LRA refptr SRA .+6
 >labloop
     LRA labptr SRA .+4 
@@ -66,7 +68,8 @@
     LRA #...                            ;read label address
     ADI #...                            ;add offset
     SSA                                 ;write to address
-
+    JMP writerefcont
+:writerefcont
     LIA slabel SRA labptr
     LRA refptr ADI #..e SRA refptr SUB stack JNZ refloop
     LIA #... HLT                        ;true end of program
@@ -224,7 +227,7 @@
 !r9ws
     SBI JNZ r9pos
 ?r9pos
-    LIA #nop JMP .+3
+    LIA #nop JMP r9pos+2
 !r9pos
     LIA #neg
     SRA .+7 LIA .+5 SRA d2trtr JMP d2t
@@ -252,7 +255,7 @@
     RTE read
     SBI #.y. JMS d2tout
 !d2tout
-    ANI #..m SRA .+6 LRA d2tout+1 MLI #..j ADI #... JMP d2tloop
+    TMI #..m SRA .+6 LRA d2tout+1 MLI #..j ADI #... JMP d2tloop
 ?d2tout
     LIA #...
     JMP
@@ -264,9 +267,9 @@
 :read3
     RTE read 
 >read2
-    ANI #..m SHL SHL SHL SRA .+6
-    RTE read ANI #..m ADI #... SHL SHL SHL SRA .+6
-    RTE read ANI #..m ADI #... JMP
+    TMI #..m SHL SHL SHL SRA .+6
+    RTE read TMI #..m ADI #... SHL SHL SHL SRA .+6
+    RTE read TMI #..m ADI #... JMP
 >r3rtr
     #...
 

@@ -152,7 +152,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tsim"
+name = "ternary_tools"
 version = "0.1.0"
 dependencies = [
  "clap",
