@@ -1,6 +1,11 @@
 use std::collections::HashMap;
-use std::{env, fs};
+use std::{env, fs, io};
 use ternary_tools::helper::*;
+
+enum Mode {
+    Assemble,
+    Encode,
+}
 
 #[derive(Debug)]
 struct Reference {
@@ -56,7 +61,7 @@ impl Assembler {
         }
     }
 
-    fn assemble(mut self, source: &str) -> Result<Vec<String>, String> {
+    fn assemble(mut self, source: &str) -> Result<String, String> {
         // Pass 1
         for line in source.lines() {
             let line = line.split(';').next().unwrap().trim();
@@ -159,7 +164,7 @@ impl Assembler {
         self.negative.reverse();
         self.negative.extend(self.positive);
 
-        Ok(self.negative)
+        Ok(self.negative.join("\n"))
     }
 }
 
@@ -176,24 +181,62 @@ fn parse_reference(token: &str) -> Result<(String, i32), String> {
     }
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() != 2 {
-        eprintln!("Usage: ttools <input.asm>");
-        return;
+    if args.len() != 4 {
+        eprintln!("Usage:");
+        eprintln!("  ttools -a <input> <output>");
+        eprintln!("  ttools -e <input> <output>");
+        std::process::exit(1);
     }
 
-    let input = fs::read_to_string(&args[1]).expect("Couldn't read input file");
-
-    let asm = Assembler::new();
-
-    match asm.assemble(&input) {
-        Ok(out) => {
-            for x in out {
-                println!("{x}");
-            }
+    let mode = match args[1].as_str() {
+        "-a" => Mode::Assemble,
+        "-e" => Mode::Encode,
+        _ => {
+            eprintln!("Unknown option: {}", args[1]);
+            eprintln!("Use -a or -e");
+            std::process::exit(1);
         }
-        Err(e) => println!("{e}"),
+    };
+
+    let input = fs::read_to_string(&args[2])?;
+
+    let output = match mode {
+        Mode::Assemble => {
+            let asm = Assembler::new();
+            asm.assemble(&input).map_err(io::Error::other)?
+        }
+        Mode::Encode => encode_text(&input),
+    };
+
+    fs::write(&args[3], output)?;
+
+    Ok(())
+}
+
+fn encode_char(c: char) -> String {
+    match c {
+        'a'..='z' => format!(".w{}", c),
+        ',' => ".w.".to_string(),
+
+        'A'..='Z' => format!(".y{}", c.to_ascii_lowercase()),
+        '.' => ".y.".to_string(),
+
+        _ => {
+            eprintln!("Unknown character {}", c);
+            "???".to_string()
+        }
     }
+}
+
+fn encode_text(input: &str) -> String {
+    let mut output = String::with_capacity(input.len() * 3);
+
+    for c in input.chars() {
+        output.push_str(&encode_char(c));
+    }
+
+    output
 }
