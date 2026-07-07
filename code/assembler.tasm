@@ -1,21 +1,21 @@
     NSP LSA SRA endinput                ;SAR should hold location of input assembly when program is started
     NSP ASP LPA SRA readptr
 
-    CLA LIA #nnn                    ;CLA includes turning SAR into #...
+    CLA LIA #..a SPA                    ;CLA includes turning SAR into #...
     JMP start
 :start                                  ;find empty storage to write to
-    LSA JMS occupied                    ;check if chunk is occupied
-    LPA SRA writeptr
+    LSA NEG JMS occupied                    ;check if chunk is occupied
     LIA #mmm SSA NSP 
     LSA SRA nextchunk
     NSP ASP
+    LPA SRA writeptr
     JMP parse
 !occupied
     NSP LSA SPA JMP start               ;place next chunk's address into SAR
 ?occupied
     LIA #sto HLT                        ;no space in storage error
 
-:parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
+:parse                                  ;(22)to check: is character opcode, label, comment, whitespace, newline, ...
     RTE read SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
     RTE read
@@ -25,7 +25,7 @@
 !ctrlchar
     ADI #.ym SBI #.z. JNZ opcode JMP refloop
 ?ctrlchar                               ;char is space, newline, eof, etc
-    ADI #.ym SUB #.z. JNZ parse
+    ADI #.ym SBI #.z. JNZ parse
 
     RTE read                            ;char is dot
     SBI #.zn NEG JMS dotpos
@@ -126,9 +126,6 @@
 :tmplit
     #...
 
-!label                                  ;char is btwn - and # -> could be ? or !
-    ADI #.xv SBI #.xu JMS qnmark
-    LIA #nop SRA labop JMP labcont      ;char is ?
 ?qnmark                                 ;char is >
     LIA .+9 SRA read9rtr
     RTE read SRA read9-1 JMP read9
@@ -165,6 +162,9 @@
 >labop
     #... SPA JMP parse
 
+!label                                  ;char is btwn - and # -> could be ? or !
+    ADI #.xv SBI #.xu JMS qnmark
+    LIA #nop SRA labop JMP labcont      ;char is ?
 ?label                                  ;char is :
     LIA .+9 SRA read9rtr
     RTE read SRA read9-1 JMP read9
@@ -182,7 +182,8 @@
     LRA posptr
     SRA #...
 !negptrge
-    LRA negptr JMP negptrge+3
+    LRA negptr JMP negptrge+2
+;TODO: after like 560 steps, at 357, we are at !negptrge
 
 
 ;chklab checks if read9{a,b,c} is equal to any label.
@@ -301,16 +302,17 @@
 
 ;data read will be in A register
 ;the :read subroutine reads data from readptr's location, then advances.
+;(453)
 :read
     LRA readptr
     SUB endinput JNZ contread
     JMP occupied
 :contread
-    LRA readptr SPA JMS posread
-?posread
-    LSA NSP RTR
+    LRA readptr SPA LSA SRA posread+4 NSP JMS posread
 !posread
-    LSA NSP ASP RTR
+    ASP JMP posread
+?posread
+    LPA SRA readptr LIA posread+4 RTR
 :readptr
     #...
 :endinput

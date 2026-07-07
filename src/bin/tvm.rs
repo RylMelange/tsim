@@ -362,7 +362,7 @@ impl Machine {
     fn step(&mut self) -> Result<(), String> {
         let opcode = self.advance_pc()?;
         let op = Op::from_i16(opcode);
-        println!("running op: {:?}", op);
+        println!("Running operation: {:?}", op);
 
         match op {
             Op::Nop => {}
@@ -382,15 +382,11 @@ impl Machine {
                 let operand = self.advance_pc()?;
                 self.write_word(RegionType::Ram, operand, self.a)?
             }
-            // TODO: LSA is asymetric with SSA, maybe add 2 more instructions?
             Op::Lsa => {
                 self.a = self.read_word(RegionType::Sto, self.sar)?;
-                self.sar = (self.sar + 1) % HALF_WORD;
             }
             Op::Ssa => {
-                let operand = self.advance_pc()?;
-                let addr = self.read_word(RegionType::Ram, operand)?;
-                self.write_word(RegionType::Sto, addr, self.a)?
+                self.write_word(RegionType::Sto, self.sar, self.a)?
             }
             Op::Lpa => self.a = self.sar,
             Op::Spa => self.sar = self.a,
@@ -409,7 +405,7 @@ impl Machine {
             }
             Op::Add => {
                 let addr = self.advance_pc()?;
-                self.b = self.read_word(RegionType::Sto, addr)?;
+                self.b = self.read_word(RegionType::Ram, addr)?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a + self.b) % HALF_WORD;
             }
@@ -420,7 +416,7 @@ impl Machine {
             }
             Op::Sub => {
                 let addr = self.advance_pc()?;
-                self.b = self.read_word(RegionType::Sto, addr)?;
+                self.b = self.read_word(RegionType::Ram, addr)?;
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a - self.b) % HALF_WORD;
             }
@@ -520,6 +516,7 @@ impl Machine {
                     "pc" => self.pc = code_to_i16(val)?,
                     "a" => self.a = code_to_i16(val)?,
                     "b" => self.b = code_to_i16(val)?,
+                    "sar" => self.sar = code_to_i16(val)?,
                     "paused" => self.paused = val.eq_ignore_ascii_case("true"),
                     _ => return Err(format!("Unknown state key: {}", key)),
                 }
@@ -673,7 +670,6 @@ impl Machine {
         }
     }
 }
-
 
 fn tritwise_mul(a: i16, b: i16) -> i16 {
     let ta = i16_to_trit(a);

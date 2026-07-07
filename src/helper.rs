@@ -114,3 +114,51 @@ pub fn trit_to_i16(trits: &[i8]) -> i16 {
 
     value
 }
+
+pub fn encode_char(c: char) -> String {
+    match c {
+        'a'..='z' => format!(".w{}", c),
+        ',' => ".w.".to_string(),
+
+        'A'..='Z' => format!(".y{}", c.to_ascii_lowercase()),
+        '.' => ".y.".to_string(),
+
+        '-' => format!(".xn"),
+        '+' => format!(".xo"),
+        '*' => format!(".xp"),
+        '/' => format!(".xq"),
+        '=' => format!(".xr"),
+        '"' => format!(".xs"),
+        '!' => format!(".xt"),
+        '?' => format!(".xu"),
+        '#' => format!(".xv"),
+        '&' => format!(".xw"),
+        '|' => format!(".xx"),
+        '<' => format!(".xy"),
+        '>' => format!(".xz"),
+
+        '0' => {
+            format!(".x.")
+        }
+        '1'..='9' => {
+            format!(".x{}", (c as u8 + 48) as char)
+        }
+
+        '(' => format!(".xj"),
+        ')' => format!(".xk"),
+        ':' => format!(".xl"),
+        ';' => format!(".xm"),
+
+        ' ' => format!(".a."),
+        '\n' => format!(".aa"),
+
+        '\'' => format!(".cs"),
+        '{' => format!(".cy"),
+        '}' => format!(".cz"),
+
+        _ => {
+            eprintln!("Unknown character {}", c);
+            "???".to_string()
+        }
+    }
+}

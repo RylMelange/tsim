@@ -144,22 +144,15 @@ impl Assembler {
             }
         }
 
+        for label in &self.labels {
+            println!("label {} is for {}", label.0, label.1);
+        }
+
         // let max_length = self.positive.len().max(self.negative.len());
         let max_length = 9842;
         self.positive.resize(max_length, "...".to_string());
         self.negative.resize(max_length, "...".to_string());
         self.negative.remove(0);
-
-        // for x in 1..max_length {
-        //     println!(
-        //         "({:3})    {}: {:3}  -  {:3} :{}",
-        //         x,
-        //         i16_to_code(x as i16),
-        //         self.positive.get(x).unwrap(),
-        //         self.negative.get(x).unwrap(),
-        //         i16_to_code(-(x as i16))
-        //     );
-        // }
 
         self.negative.reverse();
         self.negative.extend(self.positive);
@@ -216,27 +209,43 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn encode_char(c: char) -> String {
-    match c {
-        'a'..='z' => format!(".w{}", c),
-        ',' => ".w.".to_string(),
-
-        'A'..='Z' => format!(".y{}", c.to_ascii_lowercase()),
-        '.' => ".y.".to_string(),
-
-        _ => {
-            eprintln!("Unknown character {}", c);
-            "???".to_string()
-        }
-    }
-}
-
 fn encode_text(input: &str) -> String {
-    let mut output = String::with_capacity(input.len() * 3);
+    let mut codewords = String::with_capacity(input.len() * 3);
 
     for c in input.chars() {
-        output.push_str(&encode_char(c));
+        codewords.push_str(&encode_char(c));
+        codewords.push_str("\n");
     }
 
-    output
+    let mut positive = Vec::new();
+    let mut negative = Vec::new();
+
+    for (i, line) in codewords.lines().enumerate() {
+        if i % 2 == 0 {
+            positive.push(line.to_string());
+        } else {
+            negative.push(line.to_string());
+        }
+    }
+
+    // TODO: this is such a mess
+    let size = positive.len() + 2;
+    positive.insert(0, "mmm".to_string());
+    negative.insert(0, i16_to_code(size as i16));
+    positive.insert(0, "hlt".to_string());
+    negative.insert(0, "...".to_string());
+    negative.resize(size, "...".to_string());
+    // NOTE: negative is one longer for now (before we remove the duplicate zeroth
+    negative.push("mmm".to_string());
+
+    let max_length = 9842;
+    positive.resize(max_length, "...".to_string());
+    negative.resize(max_length, "...".to_string());
+    negative.remove(0);
+    // println!("pos: {:?}", positive);
+    // println!("neg: {:?}", negative);
+
+    negative.reverse();
+    negative.extend(positive);
+    negative.join("\n")
 }
