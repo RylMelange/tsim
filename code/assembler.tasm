@@ -15,7 +15,7 @@
 ?occupied
     LIA #sto HLT                        ;no space in storage error
 
-:parse                                  ;(22)to check: is character opcode, label, comment, whitespace, newline, ...
+:parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
     RTE read SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
     RTE read
@@ -183,7 +183,6 @@
     SRA #...
 !negptrge
     LRA negptr JMP negptrge+2
-;TODO: after like 560 steps, at 357, we are at !negptrge
 
 
 ;chklab checks if read9{a,b,c} is equal to any label.
@@ -212,24 +211,24 @@
 ;also reads a +<dec> or -<dec> after.
 #...                                    ;first trit to be read
 :read9
-    LIA .+5 SRA r3rtr JMP read2
-    SRA read9a JNZ .+3 JMP r9off
+;TODO: I check if last is a space... that won't do
+    LIA .+5 SRA r3rtr JMP read2 LRA read3out
+    SRA read9a LRA read3last SBI #.a. JMZ r9off
 
-    LIA .+5 SRA r3rtr JMP read3
-    SRA read9b JNZ .+3 JMP r9off
+    LIA .+5 SRA r3rtr JMP read3 LRA read3out
+    SRA read9b LRA read3last SBI #.a. JMZ r9off
 
-    LIA .+5 SRA r3rtr JMP read3
-    SRA read9c
+    LIA .+5 SRA r3rtr JMP read3 LRA read3out
+    SRA read9c LRA read3last SBI #.a. JMZ r9off
 
->r9off
-    RTE read SBI #.zn JMS r9ws          ;is this whitespace?
+    RTE read JMP r9off+2
+
+:r9off
+    ADI #.a. SBI #.zn JMS r9ws          ;is this whitespace?
 ?r9ws
     LIA #... SRA read9d JMP r9out
 !r9ws
-    SBI JNZ r9pos
-?r9pos
-    LIA #nop JMP r9pos+2
-!r9pos
+    ADI #.zn SBI #.xn JNZ r9pos                       ;is this + or -
     LIA #neg
     SRA .+7 LIA .+5 SRA d2trtr JMP d2t
     #... SRA read9d 
@@ -237,6 +236,8 @@
     JMP 
 >read9rtr
     #...
+:r9pos
+    LIA #nop SRA r9out-3 JMP r9out-9
 :read9a
     #...
 :read9b
@@ -256,7 +257,7 @@
     RTE read
     SBI #.y. JMS d2tout
 !d2tout
-    TMI #..m SRA .+6 LRA d2tout+1 MLI #..j ADI #... JMP d2tloop
+    ADI #.y. TMI #..m SRA .+6 LRA d2tout+1 MLI #..j ADI #... SRA d2tout+1 JMP d2tloop
 ?d2tout
     LIA #...
     JMP
@@ -264,15 +265,27 @@
     #...
 
 
+;TODO: this program reads until a space. it might not be a space.... should read until it's no longer a lowercase character, and then store the latest in read3last
 ;reads 3 words, concats last trits into a single word in A register
+:read3out
+    #...
+:read3last
+    #...                        ;is mmm if read3 is full
 :read3
     RTE read 
 >read2
-    TMI #..m SHL SHL SHL SRA .+6
-    RTE read TMI #..m ADI #... SHL SHL SHL SRA .+6
-    RTE read TMI #..m ADI #... JMP
+    SUB #.a. JMZ read3done 
+    ADI #.a. TMI #..m SHL SHL SHL SRA .+12
+    RTE read SUB #.a. JMZ read3done 
+    ADI #.a. TMI #..m ADI #... SHL SHL SHL SRA .+12
+    RTE read SUB #.a. JMZ read3done
+    ADI #.a. TMI #..m ADI #... SRA read3out 
+    LIA #... SRA read3last
+    JMP
 >r3rtr
     #...
+:read3done
+    LIA #mmm SRA read3last JMP r3rtr-1
 
 ;data to write should be in A register
 ;the :write subroutine writes data to writeptr's location, then advances.
@@ -302,7 +315,6 @@
 
 ;data read will be in A register
 ;the :read subroutine reads data from readptr's location, then advances.
-;(453)
 :read
     LRA readptr
     SUB endinput JNZ contread

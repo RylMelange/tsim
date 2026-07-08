@@ -53,6 +53,7 @@ enum Op {
     Jms,
     Jmp,
     Jnz,
+    Jmz,
     Rte,
     Rtr,
 
@@ -92,6 +93,7 @@ impl Op {
 
             7633 => Self::Jms,
             7630 => Self::Jmp,
+            7640 => Self::Jmz,
             6938 => Self::Jnz,
             -6745 => Self::Rte,
             -6759 => Self::Rtr,
@@ -434,6 +436,12 @@ impl Machine {
             Op::Jnz => {
                 let target = self.advance_pc()?;
                 if self.a != 0 {
+                    self.pc = target;
+                }
+            }
+            Op::Jmz => {
+                let target = self.advance_pc()?;
+                if self.a == 0 {
                     self.pc = target;
                 }
             }
