@@ -145,7 +145,7 @@ impl Assembler {
         }
 
         for label in &self.labels {
-            println!("label {} is for {}", label.0, label.1);
+            println!("{}: {}", label.1, label.0);
         }
 
         // let max_length = self.positive.len().max(self.negative.len());

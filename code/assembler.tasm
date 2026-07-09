@@ -100,8 +100,8 @@
     ;char is dash ;TODO: account for dash
 
 !lorl                                   ;char is lowercase letter (ref to label)
-    ADI #.xn SRA read9-1                         ;read9 is subroutine that reads 9 words (including one in read9-1)
-    LIA .+4 SRA read9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
+    ADI #.xn SRA r9rtr+1                         ;read9 is subroutine that reads 9 words (including one in r9rtr+1)
+    LIA .+4 SRA r9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
 
     LRA stack SPA
     LRA read9a SSA ASP
@@ -127,15 +127,15 @@
     #...
 
 ?qnmark                                 ;char is >
-    LIA .+9 SRA read9rtr
-    RTE read SRA read9-1 JMP read9
+    LIA .+9 SRA r9rtr
+    RTE read SRA r9rtr+1 JMP read9
     LRA writeptr ABS JMP mklab
 !qnmark                                 ;char is !
     LIA #neg SRA labop
 
 >labcont
-    LIA .+9 SRA read9rtr
-    RTE read SRA read9-1 JMP read9
+    LIA .+9 SRA r9rtr
+    RTE read SRA r9rtr+1 JMP read9
     LIA .+5 SRA chklabrtr JMP chklab
     JNZ labop LRA negptr NEG SUB posptr JMS negptrgr2
 ?negptrgr2
@@ -143,12 +143,12 @@
 !negptrgr2
     LRA posptr JMP mklab
 
-    #...
 :mklab
-    SRA mklab-1 
+    SRA mklab+6 
     LRA writeptr JMS curpar
+    #...
 !curpar
-    LRA mklab-1 NEG SRA mklab-1 JMP curpar
+    LRA mklab+6 NEG SRA mklab+6 JMP curpar
 :curpar
     LRA slabel-1 SRA .+4
     LRA read9a SRA #...
@@ -157,7 +157,7 @@
     LRA .-2 ADI #..b SRA .+4
     LRA read9b SRA #...
     LRA .-2 ADI #..b SRA .+4
-    LRA mklab-1 SRA #...
+    LRA mklab+6 SRA #...
 
 >labop
     #... SPA JMP parse
@@ -166,8 +166,8 @@
     ADI #.xv SBI #.xu JMS qnmark
     LIA #nop SRA labop JMP labcont      ;char is ?
 ?label                                  ;char is :
-    LIA .+9 SRA read9rtr
-    RTE read SRA read9-1 JMP read9
+    LIA .+9 SRA r9rtr
+    RTE read SRA r9rtr+1 JMP read9
     LRA slabel-1 SRA .+4
     LRA read9a SRA #...
     LRA slabel-1 ADI #..a SRA .+4
@@ -207,9 +207,8 @@
 
 
 
-;read9 reads 9 words (including the one in read9-1) and 
+;read9 reads 9 words (including the one in r9rtr+1) and 
 ;also reads a +<dec> or -<dec> after.
-#...                                    ;first trit to be read
 :read9
     LIA .+5 SRA r3rtr JMP read2 LRA read3out
     SRA read9a LRA read3last SBI #.zn JNN r9off
@@ -233,8 +232,9 @@
     #... SRA read9d 
 >r9out
     JMP 
->read9rtr
+>r9rtr
     #...
+    #...                                    ;first trit to be read
 :r9pos
     LIA #nop SRA r9out-3 JMP r9out-9
 :read9a
@@ -272,13 +272,12 @@
 :read3
     RTE read 
 >read2
-    SUB #.zn JNN read3done
+    SBI #.zn JNN read3done
     ADI #.zn TMI #..m SHL SHL SHL SRA .+12
-    RTE read SUB #.zn JNN read3done
-    ADI #.zn TMI #..m ADI #... SHL SHL SHL SRA .+12
-    RTE read SUB #.zn JNN read3done
-    ADI #.zn TMI #..m ADI #... SRA read3out
-    LIA #... SRA read3last
+    RTE read SBI #.zn JNN read3done
+    ADI #.zn TMI #..m ADI #... SHL SHL SHL SRA .+14
+    RTE read SBI #.zn JNN read3done
+    ADI #.zn SRA read3last TMI #..m ADI #... SRA read3out
     JMP
 >r3rtr
     #...
@@ -322,7 +321,7 @@
 !posread
     ASP JMP posread
 ?posread
-    LPA SRA readptr LIA posread+4 RTR
+    LPA SRA readptr LIA #... RTR
 :readptr
     #...
 :endinput

@@ -192,10 +192,6 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
         "test" => {
             let num = code_to_i16(args[0])?;
             println!("{}", num);
-            for i in i16_to_trit(num) {
-                print!(".{}", i);
-                println!();
-            }
             Ok(())
         }
         "step" | "\'" => {
