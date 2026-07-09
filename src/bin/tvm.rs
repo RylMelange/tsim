@@ -25,6 +25,7 @@ struct Machine {
     paused: bool,
     ram: Vec<i16>,
     sto: Vec<i16>,
+    cycles: u16,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -54,6 +55,7 @@ enum Op {
     Jmp,
     Jnz,
     Jmz,
+    Jnn,
     Rte,
     Rtr,
 
@@ -95,6 +97,7 @@ impl Op {
             7630 => Self::Jmp,
             7640 => Self::Jmz,
             6938 => Self::Jnz,
+            6926 => Self::Jnn,
             -6745 => Self::Rte,
             -6759 => Self::Rtr,
 
@@ -336,6 +339,7 @@ impl Default for Machine {
             paused: false,
             ram: vec![0; RAM_SIZE],
             sto: vec![0; STO_SIZE],
+            cycles: 0,
         }
     }
 }
@@ -345,7 +349,6 @@ impl Machine {
         let mut step = 0usize;
         loop {
             if self.paused {
-                println!("paused at step: {}", step);
                 break;
             }
 
@@ -364,7 +367,8 @@ impl Machine {
     fn step(&mut self) -> Result<(), String> {
         let opcode = self.advance_pc()?;
         let op = Op::from_i16(opcode);
-        println!("Running operation: {:?}", op);
+        self.cycles += 1;
+        println!("{}: Running operation: {:?}", self.cycles, op);
 
         match op {
             Op::Nop => {}
@@ -387,9 +391,7 @@ impl Machine {
             Op::Lsa => {
                 self.a = self.read_word(RegionType::Sto, self.sar)?;
             }
-            Op::Ssa => {
-                self.write_word(RegionType::Sto, self.sar, self.a)?
-            }
+            Op::Ssa => self.write_word(RegionType::Sto, self.sar, self.a)?,
             Op::Lpa => self.a = self.sar,
             Op::Spa => self.sar = self.a,
             Op::Lia => self.a = self.advance_pc()?,
@@ -442,6 +444,12 @@ impl Machine {
             Op::Jmz => {
                 let target = self.advance_pc()?;
                 if self.a == 0 {
+                    self.pc = target;
+                }
+            }
+            Op::Jnn => {
+                let target = self.advance_pc()?;
+                if self.a >= 0 {
                     self.pc = target;
                 }
             }

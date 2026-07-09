@@ -179,8 +179,8 @@
     ADI #..a SRA slabel-1
     LRA negptr NEG SUB posptr JMS negptrge
 ?negptrge                                  ;neg is greater
-    LRA posptr
-    SRA #...
+    LRA posptr SRA #...
+    JMP parse
 !negptrge
     LRA negptr JMP negptrge+2
 
@@ -211,20 +211,19 @@
 ;also reads a +<dec> or -<dec> after.
 #...                                    ;first trit to be read
 :read9
-;TODO: I check if last is a space... that won't do
     LIA .+5 SRA r3rtr JMP read2 LRA read3out
-    SRA read9a LRA read3last SBI #.a. JMZ r9off
+    SRA read9a LRA read3last SBI #.zn JNN r9off
 
     LIA .+5 SRA r3rtr JMP read3 LRA read3out
-    SRA read9b LRA read3last SBI #.a. JMZ r9off
+    SRA read9b LRA read3last SBI #.zn JNN r9off
 
     LIA .+5 SRA r3rtr JMP read3 LRA read3out
-    SRA read9c LRA read3last SBI #.a. JMZ r9off
+    SRA read9c LRA read3last SBI #.zn JNN r9off
 
-    RTE read JMP r9off+2
+    RTE read SBI #.zn JMP r9off
 
 :r9off
-    ADI #.a. SBI #.zn JMS r9ws          ;is this whitespace?
+    JMS r9ws
 ?r9ws
     LIA #... SRA read9d JMP r9out
 !r9ws
@@ -265,8 +264,7 @@
     #...
 
 
-;TODO: this program reads until a space. it might not be a space.... should read until it's no longer a lowercase character, and then store the latest in read3last
-;reads 3 words, concats last trits into a single word in A register
+;reads 3 words, concats last trits into a single word in A register. if it encounters any non-lowercase characters, it returns, with the last character read in :read3last
 :read3out
     #...
 :read3last
@@ -274,18 +272,18 @@
 :read3
     RTE read 
 >read2
-    SUB #.a. JMZ read3done 
-    ADI #.a. TMI #..m SHL SHL SHL SRA .+12
-    RTE read SUB #.a. JMZ read3done 
-    ADI #.a. TMI #..m ADI #... SHL SHL SHL SRA .+12
-    RTE read SUB #.a. JMZ read3done
-    ADI #.a. TMI #..m ADI #... SRA read3out 
+    SUB #.zn JNN read3done
+    ADI #.zn TMI #..m SHL SHL SHL SRA .+12
+    RTE read SUB #.zn JNN read3done
+    ADI #.zn TMI #..m ADI #... SHL SHL SHL SRA .+12
+    RTE read SUB #.zn JNN read3done
+    ADI #.zn TMI #..m ADI #... SRA read3out
     LIA #... SRA read3last
     JMP
 >r3rtr
     #...
 :read3done
-    LIA #mmm SRA read3last JMP r3rtr-1
+    ADI #.zn SRA read3last JMP r3rtr-1
 
 ;data to write should be in A register
 ;the :write subroutine writes data to writeptr's location, then advances.
