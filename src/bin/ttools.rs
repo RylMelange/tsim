@@ -135,7 +135,8 @@ impl Assembler {
                 .labels
                 .get(&reference.label)
                 .ok_or_else(|| format!("Unknown label {}", reference.label))?;
-            let address = i16_to_code((addr + reference.offset) as i16);
+            let sign = if *addr >= 0 {1} else {-1};
+            let address = i16_to_code((addr + sign * reference.offset) as i16);
 
             if reference.output_index > 0 {
                 self.positive[reference.output_index as usize] = format!("{:03}", address);
@@ -157,7 +158,11 @@ impl Assembler {
         self.negative.reverse();
         self.negative.extend(self.positive);
 
-        Ok(self.negative.join("\n"))
+        let mut output = self.negative.join("\n");
+
+        output.insert_str(0, "TSIM2\nRAM\n");
+
+        Ok(output)
     }
 }
 
@@ -247,5 +252,7 @@ fn encode_text(input: &str) -> String {
 
     negative.reverse();
     negative.extend(positive);
-    negative.join("\n")
+    let mut output = negative.join("\n");
+    output.insert_str(0, "TSIM2\nSTO\n");
+    output
 }

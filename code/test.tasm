@@ -1,5 +1,12 @@
- LIA #..a SRA d+1  ;co
-:d
+ LIA #..a SRA test+1  ;comment
+:test
+ #... LIA
+>n
  #...
->o
- #...
+ JMS pos
+?pos
+ LIA #pos JMP end
+!pos
+ LIA #neg JMP end
+:end
+ HLT

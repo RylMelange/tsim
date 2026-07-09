@@ -16,10 +16,13 @@
     LIA #sto HLT                        ;no space in storage error
 
 :parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
-    RTE read SBI #.xm JMS subsc          ;compare char to semicolon
+    RTE read HLT SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
     RTE read
     SBI #.aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
+!subsc
+    ADI #.xm SBI #.xn JMS lorl            ;char < semicolon
+    ;char is dash ;TODO: account for dash
 ?subsc                                  ;char is > semicolon - cap letter or control char (space/newline)
     ADI #.xm SBI #.ym JMS ctrlchar
 !ctrlchar
@@ -88,16 +91,13 @@
 
 :opcode
     ADI #.z. SBI #.y. SHL SHL SHL SRA towrite     ;char is caps character
-    RTE read ADI
+    RTE read SBI #.y. ADI
 >towrite
     #... SHL SHL SHL SRA towrite2 
-    RTE read ADI
+    RTE read SBI #.y. ADI
 >towrite2
     #... RTE write JMP parse
 
-!subsc
-    ADI #.xm SBI #.xn JMS lorl            ;char < semicolon
-    ;char is dash ;TODO: account for dash
 
 !lorl                                   ;char is lowercase letter (ref to label)
     ADI #.xn SRA r9rtr+1                         ;read9 is subroutine that reads 9 words (including one in r9rtr+1)
@@ -113,18 +113,14 @@
 ?lorl                                   ;char could be: label or literal (char > dash, < semicolon)
     ADI #xn SBI #.xv JMS label
 
-    RTE read                            ;char is literal
-    SRA tmplit
+    RTE read                            ;char is # (literal)
+    SRA contlit+9
 >contlit
-    RTE read SBI JMS carrion
-?carrion
-    LRA tmplit RTE write JMP parse
-!carrion
-    SRA tmplit2 LRA tmplit SHL SHL SHL ADI
->tmplit2
-    #... SRA tmplit JMP contlit
-:tmplit
-    #...
+    RTE read SBI #.zn JNN carrion
+    uRA .+7 LIA #... SHL SHL SHL ADI
+    #... SRA contlit+9 JMP contlit
+:carrion
+    LRA contlit+9 RTE write JMP parse
 
 ?qnmark                                 ;char is >
     LIA .+9 SRA r9rtr
@@ -313,15 +309,15 @@
 ;data read will be in A register
 ;the :read subroutine reads data from readptr's location, then advances.
 :read
+    ;LIA #red HLT
     LRA readptr
     SUB endinput JNZ contread
     JMP occupied
 :contread
-    LRA readptr SPA LSA SRA posread+4 NSP JMS posread
-!posread
-    ASP JMP posread
-?posread
-    LPA SRA readptr LIA #... RTR
+    LRA readptr SPA LSA SRA .+8 LPA NEG JNN posread
+    SRA readptr LIA #... RTR
+:posread
+    ADI #..a JMP contread+10
 :readptr
     #...
 :endinput

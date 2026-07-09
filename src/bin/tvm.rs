@@ -13,7 +13,13 @@ use std::{
 struct Args {
     /// Load a state file
     #[arg(short, long)]
-    state: Option<PathBuf>,
+    dump: Option<PathBuf>,
+    /// Load a RAM file
+    #[arg(short, long)]
+    ram: Option<PathBuf>,
+    /// Load a STO file
+    #[arg(short, long)]
+    sto: Option<PathBuf>,
 }
 
 struct Machine {
@@ -124,7 +130,27 @@ fn main() {
 
     let mut machine = Machine::default();
 
-    if let Some(path) = args.state {
+    if let Some(path) = args.ram {
+        match machine.load_state(&path) {
+            Ok(_) => {
+                println!("Loaded RAM!");
+            }
+            Err(e) => {
+                eprintln!("Error loading {}: {}", path.display(), e);
+            }
+        }
+    };
+    if let Some(path) = args.sto {
+        match machine.load_state(&path) {
+            Ok(_) => {
+                println!("Loaded STO!");
+            }
+            Err(e) => {
+                eprintln!("Error loading {}: {}", path.display(), e);
+            }
+        }
+    };
+    if let Some(path) = args.dump {
         match machine.load_state(&path) {
             Ok(_) => {
                 println!("Loaded state!");
