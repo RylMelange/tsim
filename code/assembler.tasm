@@ -16,7 +16,9 @@
     LIA #sto HLT                        ;no space in storage error
 
 :parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
-    RTE read HLT SBI #.xm JMS subsc          ;compare char to semicolon
+    RTE read
+    ;HLT
+    SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
     RTE read
     SBI #.aa JNZ sc JMP parse   ;char is semicolon - loop until newline, then go to parse
@@ -100,9 +102,11 @@
 
 
 !lorl                                   ;char is lowercase letter (ref to label)
-    ADI #.xn SRA r9rtr+1                         ;read9 is subroutine that reads 9 words (including one in r9rtr+1)
-    LIA .+4 SRA r9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
+    ;HLT
+    ADI #.xn SRA read9+5                         ;read9 is subroutine that reads 9 words (including one in read9+5)
+    LIA .+5 SRA r9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
 
+;TODO: WRONG! stop writing to storage, write to RAM instead
     LRA stack SPA
     LRA read9a SSA ASP
     LRA read9b SSA ASP
@@ -113,25 +117,27 @@
 ?lorl                                   ;char could be: label or literal (char > dash, < semicolon)
     ADI #xn SBI #.xv JMS label
 
-    RTE read                            ;char is # (literal)
-    SRA contlit+9
+    ;LIA #lit HLT
+    RTE read TMI #..m                    ;char is # (literal)
+    SRA contlit+13
 >contlit
     RTE read SBI #.zn JNN carrion
-    uRA .+7 LIA #... SHL SHL SHL ADI
-    #... SRA contlit+9 JMP contlit
+    ADI #.zn TMI #..m
+    SRA .+7 LIA #... SHL SHL SHL ADI
+    #... SRA contlit+13 JMP contlit
 :carrion
-    LRA contlit+9 RTE write JMP parse
+    LRA contlit+13 RTE write JMP parse
 
 ?qnmark                                 ;char is >
     LIA .+9 SRA r9rtr
-    RTE read SRA r9rtr+1 JMP read9
+    RTE read SRA read9+5 JMP read9
     LRA writeptr ABS JMP mklab
 !qnmark                                 ;char is !
     LIA #neg SRA labop
 
 >labcont
     LIA .+9 SRA r9rtr
-    RTE read SRA r9rtr+1 JMP read9
+    RTE read SRA read9+5 JMP read9
     LIA .+5 SRA chklabrtr JMP chklab
     JNZ labop LRA negptr NEG SUB posptr JMS negptrgr2
 ?negptrgr2
@@ -163,7 +169,7 @@
     LIA #nop SRA labop JMP labcont      ;char is ?
 ?label                                  ;char is :
     LIA .+9 SRA r9rtr
-    RTE read SRA r9rtr+1 JMP read9
+    RTE read SRA read9+5 JMP read9
     LRA slabel-1 SRA .+4
     LRA read9a SRA #...
     LRA slabel-1 ADI #..a SRA .+4
@@ -203,22 +209,22 @@
 
 
 
-;read9 reads 9 words (including the one in r9rtr+1) and 
+;read9 reads 9 words (including the one in read9+5) and 
 ;also reads a +<dec> or -<dec> after.
 :read9
-    LIA .+5 SRA r3rtr JMP read2 LRA read3out
-    SRA read9a LRA read3last SBI #.zn JNN r9off
+    LIA .+7 SRA r3rtr LIA #... JMP read2 LRA read3out
+    SRA read9a LRA read3last SBI #.xn JNN r9off
 
     LIA .+5 SRA r3rtr JMP read3 LRA read3out
-    SRA read9b LRA read3last SBI #.zn JNN r9off
+    SRA read9b LRA read3last SBI #.xn JNN r9off
 
     LIA .+5 SRA r3rtr JMP read3 LRA read3out
-    SRA read9c LRA read3last SBI #.zn JNN r9off
+    SRA read9c LRA read3last SBI #.xn JNN r9off
 
-    RTE read SBI #.zn JMP r9off
+    RTE read SBI #.xn JMP r9off
 
 :r9off
-    JMS r9ws
+    ADI #.xn SBI #.zn JMS r9ws
 ?r9ws
     LIA #... SRA read9d JMP r9out
 !r9ws
@@ -230,7 +236,6 @@
     JMP 
 >r9rtr
     #...
-    #...                                    ;first trit to be read
 :r9pos
     LIA #nop SRA r9out-3 JMP r9out-9
 :read9a
@@ -247,12 +252,10 @@
 ;subroutine that reads decimal numbers until space or newline,
 ;stores result in A register (mod word size)
 :d2t
-    LIA #... SRA d2tout+1
->d2tloop
     RTE read
     SBI #.y. JMS d2tout
 !d2tout
-    ADI #.y. TMI #..m SRA .+6 LRA d2tout+1 MLI #..j ADI #... SRA d2tout+1 JMP d2tloop
+    TMI #..m SRA .+6 LRA d2tout+1 MLI #..j ADI #... SRA d2tout+1 JMP d2t
 ?d2tout
     LIA #...
     JMP
@@ -260,7 +263,9 @@
     #...
 
 
+;TODO: just wrong.
 ;reads 3 words, concats last trits into a single word in A register. if it encounters any non-lowercase characters, it returns, with the last character read in :read3last
+;example: "te " -> te.
 :read3out
     #...
 :read3last
@@ -268,22 +273,27 @@
 :read3
     RTE read 
 >read2
-    SBI #.zn JNN read3done
-    ADI #.zn TMI #..m SHL SHL SHL SRA .+12
-    RTE read SBI #.zn JNN read3done
-    ADI #.zn TMI #..m ADI #... SHL SHL SHL SRA .+14
-    RTE read SBI #.zn JNN read3done
-    ADI #.zn SRA read3last TMI #..m ADI #... SRA read3out
+    SBI #.xn JNN r3done
+    ADI #.xn TMI #..m SHL SHL SHL SRA read3out
+    RTE read SBI #.xn JNN r3done2
+    ADI #.xn TMI #..m ADD read3out SHL SHL SHL SRA read3out
+    RTE read SBI #.xn JNN r3done3
+    ADI #.xn SRA read3last TMI #..m ADD read3out SRA read3out
     JMP
 >r3rtr
     #...
-:read3done
-    ADI #.zn SRA read3last JMP r3rtr-1
+:r3done
+    ADI #.xn SRA read3last JMP r3rtr-1
+:r3done2
+    ADI #.xn SRA read3last LRA read3out SHL SHL SHL SRA read3out JMP r3rtr-1
+:r3done3
+    ADI #.xn SRA read3last JMP r3rtr-1
 
 ;data to write should be in A register
 ;the :write subroutine writes data to writeptr's location, then advances.
 :write
     SRA writedata
+    ;LIA #wri HLT
     LRA writeptr ABS
     SUB nextchunk JMS overflow
 ?overflow
@@ -292,7 +302,7 @@
     LRA writeptr SPA LIA 
 >writedata
     #... SSA ASP 
-    LPA JMS poswriptr
+    LPA SRA writeptr JMS poswriptr
 ?poswriptr
     SRA posptr RTR
 !poswriptr
