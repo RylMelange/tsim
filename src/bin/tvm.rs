@@ -67,6 +67,8 @@ enum Op {
 
     Abs,
     Neg,
+    Adv,
+
     Adi,
     Sbi,
     Mli,
@@ -90,6 +92,7 @@ impl Op {
 
             -9704 => Self::Nsp,
             502 => Self::Asp,
+            832 => Self::Adv,
 
             8506 => Self::Lra,
             -6074 => Self::Sra,
@@ -419,6 +422,7 @@ impl Machine {
             Op::Lia => self.a = self.advance_pc()?,
             Op::Neg => self.a = -self.a,
             Op::Abs => self.a = self.a.abs(),
+            Op::Adv => self.a = if self.a >= 0 { self.a + 1 } else { self.a - 1 },
             Op::Mul => {
                 self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday

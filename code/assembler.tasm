@@ -9,6 +9,7 @@
     LSA SRA nextchunk
     NSP ASP
     LPA SRA writeptr
+    SRA posptr NEG SRA negptr
     JMP parse
 !occupied
     NSP LSA SPA JMP start               ;place next chunk's address into SAR
@@ -17,7 +18,7 @@
 
 :parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
     RTE read
-    ;HLT
+    HLT
     SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
     RTE read
@@ -77,7 +78,7 @@
 :writerefcont
     LIA slabel SRA labptr
     LRA refptr ADI #..e SRA refptr SUB stack JNZ refloop
-    LIA #... HLT                        ;true end of program
+    LIA #end HLT                        ;true end of program
 
 :nextlab
     LRA labptr ADI #..d SRA labptr SUB slabel-1 JMS nolab
@@ -98,21 +99,26 @@
     #... SHL SHL SHL SRA towrite2 
     RTE read SBI #.y. ADI
 >towrite2
-    #... RTE write JMP parse
+    #... RTE write RTE read JMP parse
 
 
 !lorl                                   ;char is lowercase letter (ref to label)
     ;HLT
-    ADI #.xn SRA read9+5                         ;read9 is subroutine that reads 9 words (including one in read9+5)
+    ADI #.xn SRA read9+14                         ;read9 is subroutine that reads 9 words (including one in read9+14)
     LIA .+5 SRA r9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
 
-;TODO: WRONG! stop writing to storage, write to RAM instead
-    LRA stack SPA
-    LRA read9a SSA ASP
-    LRA read9b SSA ASP
-    LRA read9c SSA ASP
-    LRA read9d SSA ASP                  ;this is the offset
-    LPA SRA stack
+    LRA stack SRA .+4
+    LRA read9a SRA #...
+    LRA .-2 ADV SRA .+4
+    LRA read9b SRA #...
+    LRA .-2 ADV SRA .+4
+    LRA read9c SRA #...
+    LRA .-2 ADV SRA .+4
+    LRA read9d SRA #...
+    LRA .-2 ADV
+    SRA stack
+    LIA #lab RTE write
+    JMP parse
 
 ?lorl                                   ;char could be: label or literal (char > dash, < semicolon)
     ADI #xn SBI #.xv JMS label
@@ -130,14 +136,14 @@
 
 ?qnmark                                 ;char is >
     LIA .+9 SRA r9rtr
-    RTE read SRA read9+5 JMP read9
+    RTE read SRA read9+14 JMP read9
     LRA writeptr ABS JMP mklab
 !qnmark                                 ;char is !
     LIA #neg SRA labop
 
 >labcont
     LIA .+9 SRA r9rtr
-    RTE read SRA read9+5 JMP read9
+    RTE read SRA read9+14 JMP read9
     LIA .+5 SRA chklabrtr JMP chklab
     JNZ labop LRA negptr NEG SUB posptr JMS negptrgr2
 ?negptrgr2
@@ -169,16 +175,16 @@
     LIA #nop SRA labop JMP labcont      ;char is ?
 ?label                                  ;char is :
     LIA .+9 SRA r9rtr
-    RTE read SRA read9+5 JMP read9
+    RTE read SRA read9+14 JMP read9
     LRA slabel-1 SRA .+4
     LRA read9a SRA #...
-    LRA slabel-1 ADI #..a SRA .+4
+    LRA .-2 ADV SRA .+4
     LRA read9b SRA #...
-    LRA slabel-1 ADI #..b SRA .+4
+    LRA .-2 ADV SRA .+4
     LRA read9c SRA #...
 
-    LRA slabel-1 ADI #..c SRA .+15
-    ADI #..a SRA slabel-1
+    LRA .-2 ADV SRA .+14
+    ADV SRA slabel-1
     LRA negptr NEG SUB posptr JMS negptrge
 ?negptrge                                  ;neg is greater
     LRA posptr SRA #...
@@ -209,9 +215,10 @@
 
 
 
-;read9 reads 9 words (including the one in read9+5) and 
+;read9 reads 9 words (including the one in read9+14) and 
 ;also reads a +<dec> or -<dec> after.
 :read9
+    CLA SRA read9a SRA read9b SRA read9c SRA read9d
     LIA .+7 SRA r3rtr LIA #... JMP read2 LRA read3out
     SRA read9a LRA read3last SBI #.xn JNN r9off
 
@@ -312,9 +319,9 @@
 :nextchunk
     #...
 :posptr
-    #...
+    #..a
 :negptr
-    #...
+    #..z
 
 ;data read will be in A register
 ;the :read subroutine reads data from readptr's location, then advances.
