@@ -222,6 +222,8 @@ fn encode_text(input: &str) -> String {
         codewords.push_str("\n");
     }
 
+    codewords.push_str(".z.\n");
+
     let mut positive = Vec::new();
     let mut negative = Vec::new();
 

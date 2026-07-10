@@ -18,7 +18,7 @@
 
 :parse                                  ;to check: is character opcode, label, comment, whitespace, newline, ...
     RTE read
-    HLT
+    ;HLT
     SBI #.xm JMS subsc          ;compare char to semicolon
 >sc
     RTE read
@@ -26,13 +26,15 @@
 !subsc
     ADI #.xm SBI #.xn JMS lorl            ;char < semicolon
     ;char is dash ;TODO: account for dash
-?subsc                                  ;char is > semicolon - cap letter or control char (space/newline)
+?subsc                                  ;char is > semicolon - cap letter or control char (space/newline) or dot
     ADI #.xm SBI #.ym JMS ctrlchar
-!ctrlchar
-    ADI #.ym SBI #.z. JNZ opcode JMP refloop
+!ctrlchar                               ;char is caps or dot
+    ADI #.ym SBI #.y. JNZ opcode JMP dot
 ?ctrlchar                               ;char is space, newline, eof, etc
     ADI #.ym SBI #.z. JNZ parse
+    JMP refloop                         ;char is EOF
 
+:dot
     RTE read                            ;char is dot
     SBI #.zn NEG JMS dotpos
 !dotpos
@@ -74,8 +76,6 @@
     LRA #...                            ;read label address
     ADI #...                            ;add offset
     SSA                                 ;write to address
-    JMP writerefcont
-:writerefcont
     LIA slabel SRA labptr
     LRA refptr ADI #..e SRA refptr SUB stack JNZ refloop
     LIA #end HLT                        ;true end of program
@@ -168,7 +168,7 @@
     LRA mklab+6 SRA #...
 
 >labop
-    #... SPA JMP parse
+    #... SRA writeptr JMP parse
 
 !label                                  ;char is btwn - and # -> could be ? or !
     ADI #.xv SBI #.xu JMS qnmark
@@ -329,7 +329,7 @@
     ;LIA #red HLT
     LRA readptr
     SUB endinput JNZ contread
-    JMP occupied
+    LIA #eof HLT
 :contread
     LRA readptr SPA LSA SRA .+8 LPA NEG JNN posread
     SRA readptr LIA #... RTR
