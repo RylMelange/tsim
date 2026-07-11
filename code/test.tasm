@@ -1,4 +1,4 @@
- LIA #..a SRA test+1  ;comment
+ LIA #..a SRA test+10  ;comment
 :test
  #... LIA
 >n

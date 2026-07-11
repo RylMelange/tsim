@@ -1,4 +1,3 @@
-;TODO: labels are not being replaced
 ;TODO: ! is not going on opposite of ?
     NSP LSA SRA endinput                ;SAR should hold location of input assembly when program is started
     NSP ASP LPA SRA readptr
@@ -11,8 +10,9 @@
     LSA SRA nextchunk
     NSP ASP
     LPA SRA writeptr
-    SRA startptr
     SRA posptr NEG SRA negptr
+    NEG SBI #..a
+    SRA origin
     JMP parse
 !occupied
     NSP LSA SPA JMP start               ;place next chunk's address into SAR
@@ -74,15 +74,15 @@
 >lablcont
     LRA .-4 ADV SRA writeref+1          ;lab
     LRA .-11 ADV SRA writeref+3         ;ref
-    ADV SPA                             ;prepare pointer to address
+    ADV SRA .+2 LRA #... SPA                             ;prepare pointer to address
     ;LIA #rfl HLT
 >writeref
     LRA #...                            ;read label address
     IMA #...                            ;add offset
-    DMA startptr                        ;subtract start of file
+    DMA origin                        ;subtract start of file
     SSA                                 ;write to address
     LIA slabel SRA labptr
-    LPA ADV SRA refptr SUB stack JNZ refloop
+    LRA lablcont+14 ADV SRA refptr SUB stack JNZ refloop
     LIA #end HLT                        ;true end of program
 
 :nextlab
@@ -150,9 +150,9 @@
     LIA #neg SRA mklab
 
 >labcont
-    ;LIA #lbc HLT
     LIA .+9 SRA r9rtr
     RTE read SRA read9+14 JMP read9
+    ;LIA #lbc HLT
     LIA .+5 SRA chklabrtr JMP chklab
     JNZ labop LRA negptr NEG SUB posptr JMS negptrgr2
 ?negptrgr2
@@ -225,7 +225,7 @@
 >chklabrtr
     #...
 :chknxtlab
-    LRA chklab+1 ADI #..d SBI slabel-1 JMS chknolab
+    LRA chklab+1 ADV ADV ADV ADV SUB slabel-1 JMS chknolab
     LIA #..a ;the second unecessary check could technically return if overflow == read9{a-c} :)
 !chknolab
     ADI slabel-1 SRA chklab+1
@@ -337,7 +337,7 @@
     SRA negptr RTR
 :writeptr
     #...
-:startptr                   ;start of file (not including fs)
+:origin                   ;start of file (not including fs)
     #...
 :nextchunk                  ;start of next file
     #...

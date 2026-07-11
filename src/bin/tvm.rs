@@ -429,7 +429,8 @@ impl Machine {
             Op::Abs => self.a = self.a.abs(),
             Op::Adv => self.a = if self.a >= 0 { self.a + 1 } else { self.a - 1 },
             Op::Ima => {
-                let amnt = self.advance_pc()?;
+                let addr = self.advance_pc()?;
+                let amnt = self.read_word(RegionType::Ram, addr)?;
                 self.a = if self.a >= 0 {
                     self.a + amnt
                 } else {
@@ -437,7 +438,8 @@ impl Machine {
                 }
             }
             Op::Dma => {
-                let amnt = self.advance_pc()?;
+                let addr = self.advance_pc()?;
+                let amnt = self.read_word(RegionType::Ram, addr)?;
                 self.a = if self.a >= 0 {
                     self.a - amnt
                 } else {
