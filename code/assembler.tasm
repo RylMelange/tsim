@@ -1,5 +1,5 @@
-;TODO: opcode instructions seem to be incremented by 1 (or garbled)
 ;TODO: labels are not being replaced
+;TODO: ! is not going on opposite of ?
     NSP LSA SRA endinput                ;SAR should hold location of input assembly when program is started
     NSP ASP LPA SRA readptr
 
@@ -97,7 +97,7 @@
     slabel
 
 :opcode
-    ADI #.z. SBI #.y. SHL SHL SHL SRA towrite     ;char is caps character
+    SHL SHL SHL SRA towrite     ;char is caps character
     RTE read SBI #.y. ADI
 >towrite
     #... SHL SHL SHL SRA towrite2 
