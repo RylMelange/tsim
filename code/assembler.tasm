@@ -38,17 +38,21 @@
 
 :dot
     RTE read                            ;char is dot
-    SBI #.zn NEG JMS dotpos
-!dotpos
-    LIA #nop JMP dotpos+2
-?dotpos
+    SBI #.zn JNN dotnooff
+    ADI #.zn SBI #.xn JNZ dotplus
+    JMP dotminus
+:dotnooff
+    CLA JMP dotposwri+7
+:dotplus                                ;token is .+
+    LIA #nop JMP dotminus+2
+:dotminus                               ;token is .-
     LIA #neg
     SRA .+7 LIA .+5 SRA d2trtr JMP d2t
-    #... SRA .+14 LRA writeptr 
+    #... SRA dotposwri+5 LRA writeptr 
     NEG JMS dotposwri
-!dotposwri
+!dotposwri                              ;writeptr is neg
     LIA #nop JMP dotposwri+2
-?dotposwri
+?dotposwri                              ;writeptr is pos
     LIA #neg
     SRA .+3
     LIA #... #... ADD writeptr
@@ -362,7 +366,7 @@
 ;the :read subroutine reads data from readptr's location, then advances.
 :read
     ;LIA #red HLT
-    LRA readptr
+    LRA readptr ABS
     SUB endinput JNZ contread
     LIA #eof HLT
 :contread

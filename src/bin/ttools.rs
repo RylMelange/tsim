@@ -17,6 +17,8 @@ struct Reference {
 struct Assembler {
     labels: HashMap<String, i32>,
 
+    instruction_count: u32,
+
     negative: Vec<String>,
     positive: Vec<String>,
 
@@ -29,6 +31,7 @@ impl Assembler {
     fn new() -> Self {
         Self {
             labels: HashMap::new(),
+            instruction_count: 0,
             negative: vec!["...".to_string()],
             positive: vec!["...".to_string()],
             references: Vec::new(),
@@ -37,6 +40,7 @@ impl Assembler {
     }
 
     fn emit(&mut self, text: String) {
+        self.instruction_count += 1;
         const PRINT: bool = false;
         if self.pc >= 0 {
             let index = self.pc as usize;
@@ -129,13 +133,15 @@ impl Assembler {
             }
         }
 
+        println!("number of instructions: {}", self.instruction_count);
+
         // Pass 2
         for reference in &self.references {
             let addr = self
                 .labels
                 .get(&reference.label)
                 .ok_or_else(|| format!("Unknown label {}", reference.label))?;
-            let sign = if *addr >= 0 {1} else {-1};
+            let sign = if *addr >= 0 { 1 } else { -1 };
             let address = i16_to_code((addr + sign * reference.offset) as i16);
 
             if reference.output_index > 0 {

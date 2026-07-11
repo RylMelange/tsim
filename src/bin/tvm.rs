@@ -31,7 +31,7 @@ struct Machine {
     paused: bool,
     ram: Vec<i16>,
     sto: Vec<i16>,
-    cycles: u16,
+    cycles: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -477,7 +477,7 @@ impl Machine {
             Op::Mli => {
                 self.b = self.advance_pc()?;
                 // TODO: this is probably not accurate, fix someday
-                self.a = (self.a * self.b) % HALF_WORD;
+                self.a = ((self.a as i32 * self.b as i32) % HALF_WORD as i32) as i16;
             }
             Op::Tmi => {
                 self.b = self.advance_pc()?;
