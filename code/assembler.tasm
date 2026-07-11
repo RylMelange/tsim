@@ -1,3 +1,5 @@
+;TODO: opcode instructions seem to be incremented by 1 (or garbled)
+;TODO: labels are not being replaced
     NSP LSA SRA endinput                ;SAR should hold location of input assembly when program is started
     NSP ASP LPA SRA readptr
 
@@ -56,7 +58,6 @@
 
 
 :refloop                                ;char is EOF
-    HLT
     LRA refptr SRA .+6
 >labloop
     LRA labptr SRA .+4 
@@ -73,28 +74,22 @@
 >lablcont
     LRA .-4 ADV SRA writeref+1          ;lab
     LRA .-11 ADV SRA writeref+3         ;ref
-    LRA .-5 ADV                         ;ref
-    SPA ;prepare pointer to address
-    HLT
+    ADV SPA                             ;prepare pointer to address
+    ;LIA #rfl HLT
 >writeref
     LRA #...                            ;read label address
-    ;TODO: offset should be positive or neg depending on LRA results
-    ;TODO: subtracting start of file should also be pos or neg depending on LRA
-    ;TODO: label address is 0: that's wrong, fix that
-    ADD #...                            ;add offset
-    SUB startptr                        ;subtract start of file
+    IMA #...                            ;add offset
+    DMA startptr                        ;subtract start of file
     SSA                                 ;write to address
     LIA slabel SRA labptr
-    LRA lablcont-3 ADV SRA refptr SUB stack JNZ refloop
-    ;TODO: refptr and stack don't seem to be pointing at the same stack
+    LPA ADV SRA refptr SUB stack JNZ refloop
     LIA #end HLT                        ;true end of program
 
 :nextlab
-    LRA labptr ADV ADV ADV ADV SRA labptr SUB slabel-1 JMS nolab
-?nolab
-    LIA #nol HLT                        ;no label for ref
-!nolab
+    LRA labptr ADV ADV ADV ADV SRA labptr SUB slabel-1 JNN nolab
     JMP labloop
+:nolab
+    LIA #nol HLT                        ;no label for ref
 
 :refptr
     sref
@@ -111,8 +106,8 @@
     #... RTE write RTE read JMP parse
 
 
+;making refs
 !lorl                                   ;char is lowercase letter (ref to label)
-    ;HLT
     ADI #.xn SRA read9+14                         ;read9 is subroutine that reads 9 words (including one in read9+14)
     LIA .+5 SRA r9rtr JMP read9      ;will also read a +<dec> or -<dec> after the address
 
@@ -123,7 +118,9 @@
     LRA .-2 ADV SRA .+4
     LRA read9c SRA #...
     LRA .-2 ADV SRA .+4
-    LRA read9d SRA #...
+    LRA read9d SRA #...                 ;offset
+    LRA .-2 ADV SRA .+4
+    LRA writeptr SRA #...
     LRA .-2 ADV
     SRA stack
     LIA #lab RTE write
@@ -144,13 +141,16 @@
     LRA contlit+13 RTE write JMP parse
 
 ?qnmark                                 ;char is >
+    ;TODO: this code doesn't run?
+    LIA #arr HLT
     LIA .+9 SRA r9rtr
     RTE read SRA read9+14 JMP read9
-    LRA writeptr ABS JMP mklab
+    LRA writeptr JMP mklab
 !qnmark                                 ;char is !
-    LIA #neg SRA labop
+    LIA #neg SRA mklab
 
 >labcont
+    ;LIA #lbc HLT
     LIA .+9 SRA r9rtr
     RTE read SRA read9+14 JMP read9
     LIA .+5 SRA chklabrtr JMP chklab
@@ -160,31 +160,44 @@
 !negptrgr2
     LRA posptr JMP mklab
 
-:mklab
-    SRA mklab+6 
-    LRA writeptr JMS curpar
+;making labels
+:mklabaddr
     #...
+:mklab
+    #... SRA mklabaddr 
+    ;LIA #lab HLT
+    LRA writeptr JMS curpar
 !curpar
-    LRA mklab+6 NEG SRA mklab+6 JMP curpar
-:curpar
+    LRA mklabaddr NEG SRA mklabaddr 
+    LIA #neg SRA labop
+    JMP curpar
+?curpar
+    LIA #nop SRA labop
+
     LRA slabel-1 SRA .+4
     LRA read9a SRA #...
-    LRA .-2 ADI #..a SRA .+4
+    LRA .-2 ADV SRA .+4
     LRA read9b SRA #...
-    LRA .-2 ADI #..b SRA .+4
-    LRA read9b SRA #...
-    LRA .-2 ADI #..b SRA .+4
-    LRA mklab+6 SRA #...
+    LRA .-2 ADV SRA .+4
+    LRA read9c SRA #...
+    LRA .-2 ADV SRA .+4
+    LRA mklabaddr SRA #...
 
+    LRA .-2 ADV SRA slabel-1
+
+    ;TODO: rewrite this, this is a mess
+    LRA mklabaddr ABS
 >labop
     #... SRA writeptr JMP parse
 
 !label                                  ;char is btwn - and # -> could be ? or !
     ADI #.xv SBI #.xu JMS qnmark
-    LIA #nop SRA labop JMP labcont      ;char is ?
+    LIA #nop SRA mklab JMP labcont      ;char is ?
 ?label                                  ;char is :
     LIA .+9 SRA r9rtr
     RTE read SRA read9+14 JMP read9
+    ;LIA #lab HLT
+
     LRA slabel-1 SRA .+4
     LRA read9a SRA #...
     LRA .-2 ADV SRA .+4
@@ -196,7 +209,7 @@
     ADV SRA slabel-1
     LRA negptr NEG SUB posptr JMS negptrge
 ?negptrge                                  ;neg is greater
-    LRA posptr SRA #...
+    LRA posptr SRA #... SRA writeptr
     JMP parse
 !negptrge
     LRA negptr JMP negptrge+2
@@ -237,12 +250,13 @@
     LIA .+5 SRA r3rtr JMP read3 LRA read3out
     SRA read9c LRA read3last SBI #.xn JNN r9off
 
-    RTE read SBI #.xn JMP r9off
+    RTE read 
+    JMP r9off
 
 :r9off
     ADI #.xn SBI #.zn JMS r9ws
 ?r9ws
-    LIA #... SRA read9d JMP r9out
+    LIA #... SRA read9d JMP r9out       ;TODO: not needed
 !r9ws
     ADI #.zn SBI #.xn JNZ r9pos                       ;is this + or -
     LIA #neg
@@ -279,9 +293,7 @@
     #...
 
 
-;TODO: just wrong.
 ;reads 3 words, concats last trits into a single word in A register. if it encounters any non-lowercase characters, it returns, with the last character read in :read3last
-;example: "te " -> te.
 :read3out
     #...
 :read3last
@@ -299,7 +311,7 @@
 >r3rtr
     #...
 :r3done
-    ADI #.xn SRA read3last JMP r3rtr-1
+    ADI #.xn SRA read3last CLA SRA read3out JMP r3rtr-1
 :r3done2
     ADI #.xn SRA read3last LRA read3out SHL SHL SHL SRA read3out JMP r3rtr-1
 :r3done3
