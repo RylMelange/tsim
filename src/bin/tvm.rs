@@ -405,6 +405,7 @@ impl Machine {
         println!("{}: Running operation: {:?}", self.cycles, op);
 
         match op {
+            // TODO: maybe introduce set_a(num) to avoid writing % HALF_WORD all over the place
             Op::Nop => {}
             Op::Hlt => {
                 self.paused = true;
@@ -437,34 +438,34 @@ impl Machine {
                 let addr = self.advance_pc()?;
                 let amnt = self.read_word(RegionType::Ram, addr)?;
                 self.a = if self.a >= 0 {
-                    self.a + amnt
+                    (self.a + amnt) % HALF_WORD
                 } else {
-                    self.a - amnt
+                    (self.a - amnt) % HALF_WORD
                 }
             }
             Op::Dma => {
                 let addr = self.advance_pc()?;
                 let amnt = self.read_word(RegionType::Ram, addr)?;
                 self.a = if self.a >= 0 {
-                    self.a - amnt
+                    (self.a - amnt) % HALF_WORD
                 } else {
-                    self.a + amnt
+                    (self.a + amnt) % HALF_WORD
                 }
             }
             Op::Imi => {
                 let amnt = self.advance_pc()?;
                 self.a = if self.a >= 0 {
-                    self.a + amnt
+                    (self.a + amnt) % HALF_WORD
                 } else {
-                    self.a - amnt
+                    (self.a - amnt) % HALF_WORD
                 }
             }
             Op::Dmi => {
                 let amnt = self.advance_pc()?;
                 self.a = if self.a >= 0 {
-                    self.a - amnt
+                    (self.a - amnt) % HALF_WORD
                 } else {
-                    self.a + amnt
+                    (self.a + amnt) % HALF_WORD
                 }
             }
 
@@ -647,7 +648,7 @@ impl Machine {
             *word = value;
             Ok(())
         } else {
-            Err(format!("Address {} out of range!", addr))
+            Err(format!("Address {} or value {} out of range!", addr, value))
         }
     }
 
