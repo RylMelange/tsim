@@ -70,6 +70,8 @@ enum Op {
     Adv,
     Ima,
     Dma,
+    Imi,
+    Dmi,
 
     Adi,
     Sbi,
@@ -114,8 +116,10 @@ impl Op {
             775 => Self::Abs,
             -9335 => Self::Neg,
             832 => Self::Adv,
-            3268 => Self::Dma,
             6913 => Self::Ima,
+            3268 => Self::Dma,
+            6921 => Self::Imi,
+            3276 => Self::Dmi,
 
             846 => Self::Adi,
             -5769 => Self::Sbi,
@@ -234,7 +238,7 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
             machine.print_state(false);
             Ok(())
         }
-        "run" => {
+        "run" | "/" => {
             machine.paused = false;
             match args.len() {
                 0 => machine.run(None)?,
@@ -428,6 +432,7 @@ impl Machine {
             Op::Neg => self.a = -self.a,
             Op::Abs => self.a = self.a.abs(),
             Op::Adv => self.a = if self.a >= 0 { self.a + 1 } else { self.a - 1 },
+
             Op::Ima => {
                 let addr = self.advance_pc()?;
                 let amnt = self.read_word(RegionType::Ram, addr)?;
@@ -440,6 +445,22 @@ impl Machine {
             Op::Dma => {
                 let addr = self.advance_pc()?;
                 let amnt = self.read_word(RegionType::Ram, addr)?;
+                self.a = if self.a >= 0 {
+                    self.a - amnt
+                } else {
+                    self.a + amnt
+                }
+            }
+            Op::Imi => {
+                let amnt = self.advance_pc()?;
+                self.a = if self.a >= 0 {
+                    self.a + amnt
+                } else {
+                    self.a - amnt
+                }
+            }
+            Op::Dmi => {
+                let amnt = self.advance_pc()?;
                 self.a = if self.a >= 0 {
                     self.a - amnt
                 } else {
@@ -621,7 +642,8 @@ impl Machine {
         if let Some(word) = match region {
             RegionType::Ram => self.ram.get_mut(idx),
             RegionType::Sto => self.sto.get_mut(idx),
-        } {
+        } && value.abs() <= HALF_WORD
+        {
             *word = value;
             Ok(())
         } else {

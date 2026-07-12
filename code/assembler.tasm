@@ -42,20 +42,14 @@
     ADI #.zn SBI #.xn JNZ dotplus
     JMP dotminus
 :dotnooff
-    CLA JMP dotposwri+7
+    CLA JMP dotminus+11
 :dotplus                                ;token is .+
     LIA #nop JMP dotminus+2
 :dotminus                               ;token is .-
     LIA #neg
     SRA .+7 LIA .+5 SRA d2trtr JMP d2t
-    #... SRA dotposwri+5 LRA writeptr 
-    NEG JMS dotposwri
-!dotposwri                              ;writeptr is neg
-    LIA #nop JMP dotposwri+2
-?dotposwri                              ;writeptr is pos
-    LIA #neg
-    SRA .+3
-    LIA #... #... ADD writeptr
+    #... SRA .+4
+    LRA writeptr IMI #...
     RTE write
     JMP parse
 
@@ -113,6 +107,7 @@
     slabel
 
 :opcode
+    ;HLT
     SHL SHL SHL SRA towrite     ;char is caps character
     RTE read SBI #.y. ADI
 >towrite
@@ -266,7 +261,7 @@
     LIA .+5 SRA r3rtr JMP read3 LRA read3out
     SRA read9c LRA read3last SBI #.xn JNN r9off
 
-    RTE read 
+    RTE read SBI #.xn
     JMP r9off
 
 :r9off
