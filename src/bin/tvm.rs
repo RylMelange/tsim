@@ -1,5 +1,4 @@
-use ternary_tools::helper::*;
-
+use bitflags::bitflags;
 use clap::Parser;
 use std::fmt::Write as _;
 use std::{
@@ -7,6 +6,7 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
 };
+use ternary_tools::helper::*;
 
 #[derive(Parser, Debug)]
 #[command(name = "tsim", version, about = "A binary VM", long_about = None)]
@@ -32,6 +32,15 @@ struct Machine {
     ram: Vec<i16>,
     sto: Vec<i16>,
     cycles: u32,
+}
+
+bitflags! {
+    #[derive(PartialEq)]
+    pub struct States: u8 {
+        const ALL = 0b11111111;
+        const RAM = 0b01000000;
+        const STO = 0b10000000;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -348,11 +357,29 @@ fn handle_command(machine: &mut Machine, input: &str) -> Result<(), String> {
             }
         }
         "save" => {
-            if args.len() == 1 {
-                machine.save_state(PathBuf::from(&args[0]).as_path())
+            let mut args = args.into_iter();
+            let path = args
+                .next()
+                .ok_or(format!("Usage: save <file> [all|sto|ram]"))?;
+            let mut states = States::empty();
+
+            if args.len() == 0 {
+                states = States::ALL;
             } else {
-                Err(format!("Usage: save <file>"))
+                while let Some(arg) = args.next() {
+                    if arg.eq_ignore_ascii_case("all") {
+                        states = states | States::ALL;
+                    } else if arg.eq_ignore_ascii_case("sto") {
+                        states = states | States::STO;
+                    } else if arg.eq_ignore_ascii_case("ram") {
+                        states = states | States::RAM;
+                    } else {
+                        return Err(format!("Usage: save <file> [all|sto|ram]"));
+                    }
+                }
             }
+
+            machine.save_state(states, PathBuf::from(path).as_path())
         }
         _ => {
             println!("Unknown command: {}", cmd);
@@ -613,25 +640,32 @@ impl Machine {
         Ok(())
     }
 
-    fn save_state(&mut self, path: &Path) -> Result<(), String> {
+    fn save_state(&mut self, to_save: States, path: &Path) -> Result<(), String> {
         let mut state = String::new();
-        state.push_str("TSIM1\n");
-        state.push_str(&format!("pc {}\n", i16_to_code(self.pc)));
-        state.push_str(&format!("a {}\n", i16_to_code(self.a)));
-        state.push_str(&format!("b {}\n", i16_to_code(self.b)));
-        state.push_str(&format!(
-            "paused {}\n",
-            if self.paused { "true" } else { "false" }
-        ));
+        state.push_str("TSIM2\n");
 
-        state.push_str("RAM\n");
-        for val in &self.ram {
-            state.push_str(&format!("{}\n", i16_to_code(*val)));
+        if to_save == States::ALL {
+            state.push_str(&format!("pc {}\n", i16_to_code(self.pc)));
+            state.push_str(&format!("a {}\n", i16_to_code(self.a)));
+            state.push_str(&format!("b {}\n", i16_to_code(self.b)));
+            state.push_str(&format!(
+                "paused {}\n",
+                if self.paused { "true" } else { "false" }
+            ));
+        };
+
+        if to_save.intersects(States::RAM) {
+            state.push_str("RAM\n");
+            for val in &self.ram {
+                state.push_str(&format!("{}\n", i16_to_code(*val)));
+            }
         }
 
-        state.push_str("STO\n");
-        for val in &self.sto {
-            state.push_str(&format!("{}\n", i16_to_code(*val)));
+        if to_save.intersects(States::STO) {
+            state.push_str("STO\n");
+            for val in &self.sto {
+                state.push_str(&format!("{}\n", i16_to_code(*val)));
+            }
         }
 
         fs::write(path, state).map_err(|e| e.to_string())
