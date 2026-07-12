@@ -1,0 +1,35 @@
+;should start with input file location in SAR
+;should store target RAM ..a location in A register
+  SRA targetram
+  LPA SRA startfile
+  NEG SPA LSA SRA endfile
+  LRA startfile ADV SRA startfile SPA
+  LIA targetram SRA ptr
+  JMP firstloop
+
+:firstloop
+  LRA ptr SRA .+6 ADV SRA ptr
+  LSA SRA #... 
+  ASP LPA SUB endfile JNZ firstloop
+
+  LRA startfile NEG SPA 
+  LRA targetram NEG SRA ptr
+  JMP secloop
+
+:secloop
+  LRA ptr SRA .+6 ADV SRA ptr
+  LSA SRA #...
+  ASP LPA ADD endfile JNZ secloop
+
+  LIA #end HLT
+
+:targetram
+  #..a
+:ptr
+  #..a
+:startfile
+  #...
+:endfile
+  #...
+
+; vim: ts=8 sw=2 :

@@ -648,6 +648,7 @@ impl Machine {
             state.push_str(&format!("pc {}\n", i16_to_code(self.pc)));
             state.push_str(&format!("a {}\n", i16_to_code(self.a)));
             state.push_str(&format!("b {}\n", i16_to_code(self.b)));
+            state.push_str(&format!("sar {}\n", i16_to_code(self.sar)));
             state.push_str(&format!(
                 "paused {}\n",
                 if self.paused { "true" } else { "false" }
