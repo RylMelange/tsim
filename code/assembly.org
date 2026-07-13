@@ -1,0 +1,81 @@
+* Notes
+** Definitions
+|------+--------------------------|
+| Name | Meaning                  |
+|------+--------------------------|
+| SAR  | Storage Address Register |
+| 'X   | Register X               |
+|------+--------------------------|
+** Opcodes
+| Code     | Definition                                                            |
+|----------+-----------------------------------------------------------------------|
+| NOP      | No operation                                                          |
+| HLT      | Halt                                                                  |
+| CLA      | Clear All: SAR, 'A, 'B                                                |
+| ASP      | Advance storage pointer; negative SAR -> -SAR+1, positive SAR -> -SAR |
+| LRA #adr | Load value into adr'RAM from 'A                                       |
+| SRA #adr | Store value into adr'RAM from 'A                                      |
+| LSA      | Load value from SAR'STO into 'A                                       |
+| SSA      | Store value into SAR'STO from 'A                                      |
+| LPA      | Load SAR into 'A                                                      |
+| SPA      | Store SAR into 'A                                                     |
+| LIA #val | Load immediate value #val into 'A                                     |
+| SBA      | Store value into 'B'STO from 'A                                       |
+| AVA      | Advance 'A                                                            |
+| LRB #adr | Load value into adr'RAM from 'B                                       |
+| SRB #adr | Store value into adr'RAM from 'B                                      |
+| LIB #val | Load immediate value #val into 'B                                     |
+| AVB      | Advance 'B                                                            |
+| JMS      |                                                                       |
+| JMP      |                                                                       |
+| JNZ      |                                                                       |
+| RTE      |                                                                       |
+| RTR      |                                                                       |
+| ADI      |                                                                       |
+| SBI      |                                                                       |
+| MLI      |                                                                       |
+| TMI      |                                                                       |
+| ABS      |                                                                       |
+| NEG      |                                                                       |
+| IMA      |                                                                       |
+| DMA      |                                                                       |
+| IMI      |                                                                       |
+| DMI      |                                                                       |
+| ADD      |                                                                       |
+| SUB      |                                                                       |
+| MUL      |                                                                       |
+| SHL      |                                                                       |
+| SHR      |                                                                       |
+|----------+-----------------------------------------------------------------------|
+(removed adv)
+
+* Ternary Editor (ted)
+** 1: Loading File
+#+BEGIN_SRC
+  ;A register should contain location of input file
+  SPA
+  JMZ ;TODO: skip to make-unused
+
+  ASP LSA SRA endinput
+  ASP LPA SRA readptr
+  LIB bufstart
+
+  :readloop
+  LSA
+  ;TODO: check if text has newline
+  SBA AVB ASP
+  ;TODO: check if ram is out of space,
+  LIA bufend ABS SBB
+  ;TODO: or we reached end of input file
+  JMP readloop
+
+
+
+  :endinput #...
+  :readptr #...
+  :bufstart
+  :bufend
+
+#+END_SRC
+** 2: Editing File
+** 3: Writing File
