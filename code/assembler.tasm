@@ -1,22 +1,22 @@
-;A register should store location of input file
+;A register should contain location of input file
   SPA
-  NSP LSA SRA endinput
-  NSP ASP LPA SRA readptr
+  ASP LSA SRA endinput
+  ASP LPA SRA readptr
 
   CLA LIA #..a SPA                  ;CLA includes turning SAR into #...
   JMP start
 :start                              ;find empty storage to write to
   LSA NEG JMS occupied              ;check if chunk is occupied
-  LIA #mmm SSA NSP 
+  LIA #mmm SSA ASP 
   LSA SRA nextchunk
-  NSP ASP
+  ASP
   LPA SRA writeptr
   SRA posptr NEG SRA negptr
   NEG SBI #..a
   SRA origin
   JMP parse
 !occupied
-  NSP LSA SPA JMP start             ;place next chunk's address into SAR
+  ASP LSA SPA JMP start             ;place next chunk's address into SAR
 ?occupied
   LIA #sto HLT                      ;no space in storage error
 

@@ -55,7 +55,6 @@ enum Op {
     Hlt,
     Cla,
 
-    Nsp,
     Asp,
 
     Lra,
@@ -89,6 +88,7 @@ enum Op {
     Add,
     Sub,
     Mul,
+    Sbb,
 
     Shl,
     Shr,
@@ -103,7 +103,6 @@ impl Op {
             6149 => Self::Hlt,
             2512 => Self::Cla,
 
-            -9704 => Self::Nsp,
             502 => Self::Asp,
 
             8506 => Self::Lra,
@@ -137,6 +136,7 @@ impl Op {
             841 => Self::Add,
             -5992 => Self::Sub,
             9327 => Self::Mul,
+            -5776 => Self::Sbb,
 
             -5604 => Self::Shl,
             -5625 => Self::Shr,
@@ -517,6 +517,10 @@ impl Machine {
                 // TODO: this is probably not accurate, fix someday
                 self.a = (self.a - self.b) % HALF_WORD;
             }
+	    Op::Sbb => {
+                // TODO: this is probably not accurate, fix someday
+		self.a = (self.a - self.b) % HALF_WORD;
+	    }
             Op::Sub => {
                 let addr = self.advance_pc()?;
                 self.b = self.read_word(RegionType::Ram, addr)?;
@@ -566,12 +570,11 @@ impl Machine {
                 self.pc = target;
             }
             Op::Rtr => self.pc = self.srr,
-            Op::Nsp => self.sar = -self.sar,
             Op::Asp => {
                 self.sar = if self.sar < 0 {
-                    self.sar - 1
+                    -self.sar + 1
                 } else {
-                    self.sar + 1
+                    -self.sar
                 }
             }
             Op::Shl => {
