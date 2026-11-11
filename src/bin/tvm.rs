@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use ternary_tools::helper::*;
+use raylib::prelude::*;
 
 #[derive(Parser, Debug)]
 #[command(name = "tsim", version, about = "A binary VM", long_about = None)]

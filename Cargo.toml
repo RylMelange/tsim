@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }
 bitflags = { version = "2.13.0" }
+raylib = { version = "6.0.0" }
